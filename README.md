@@ -56,7 +56,7 @@ Sources/EmojiMatchCore/      Game rules. No UIKit, SwiftUI, or SpriteKit.
   GameEngine.swift           State machine, selection, touch interpolation, match resolution
   Board.swift                Grid storage, solvability search, reshuffle fallback
   RoundClock.swift           Safe frame deltas
-  Persistence.swift          High score and settings keys (UserDefaults)
+  Persistence.swift          High score, leaderboard and settings keys (UserDefaults)
 Tests/EmojiMatchCoreTests/   Rules tests, runnable with `swift test`
 App/EmojiMatch/
   Game/GameSession.swift     Connects engine, scene, feedback, and HUD for one round
@@ -81,7 +81,8 @@ App/EmojiMatchUITests/       End-to-end XCUITest on a fixed board
 - *Timer.* The 60 seconds run during match animations, since the round is real time. On expiry, a selection of 3 or more tiles commits and fewer is cancelled; a committed match finishes animating, counts, and then the round ends. Backgrounding treats the selection the same way, as if the finger lifted.
 - *Tuning.* String start, growth, and cap are the `startingLength`, `lengthGrowth`, and `lengthCap` defaults in `GameConfig`.
 - *Solvability.* Random boards can genuinely have no match: `unsolvableTypes()` in the tests is a full board without one. After every refill the engine checks, then shuffles the existing tiles, with a deterministic fallback that always succeeds.
-- *Sound* is synthesized at runtime, so there are no audio assets, and uses the ambient session so it mixes with music and obeys the silent switch.
+- *Sound* is synthesized at runtime, so there are no audio assets, and uses the ambient session so it mixes with music and obeys the silent switch. Each emoji has its own voice in `SoundSynth`.
+- *Leaderboard* is local to the device (top 10). A global one would need Game Center, which needs an Apple Developer team.
 
 ## Known limitations
 

@@ -3,11 +3,20 @@ import SwiftUI
 struct HomeView: View {
     let best: Int
     let play: () -> Void
+    let openLeaderboard: () -> Void
     let openSettings: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                Button(action: openLeaderboard) {
+                    Image(systemName: "trophy.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.inkSoft)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Leaderboard")
+                .accessibilityIdentifier("leaderboardButton")
                 Spacer()
                 Button(action: openSettings) {
                     Image(systemName: "gearshape.fill")

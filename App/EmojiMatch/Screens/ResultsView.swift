@@ -3,6 +3,7 @@ import SwiftUI
 struct ResultsView: View {
     let summary: RoundSummary
     let playAgain: () -> Void
+    let openLeaderboard: () -> Void
     let goHome: () -> Void
 
     @State private var appeared = false
@@ -28,6 +29,13 @@ struct ResultsView: View {
                 .accessibilityValue("\(summary.score)")
                 .accessibilityIdentifier("finalScore")
 
+            if let rank = summary.leaderboardRank {
+                Text("#\(rank) on your leaderboard")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .foregroundStyle(Theme.pink)
+                    .accessibilityIdentifier("leaderboardRank")
+            }
+
             HStack(spacing: 12) {
                 stat("Personal best", summary.best, id: "personalBest")
                 stat("Matches", summary.matches, id: "matchCount")
@@ -42,9 +50,14 @@ struct ResultsView: View {
                 Button("Play Again", action: playAgain)
                     .buttonStyle(PrimaryButtonStyle())
                     .accessibilityIdentifier("playAgainButton")
-                Button("Home", action: goHome)
-                    .buttonStyle(SecondaryButtonStyle())
-                    .accessibilityIdentifier("homeButton")
+                HStack(spacing: 12) {
+                    Button("Leaderboard", action: openLeaderboard)
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("resultsLeaderboardButton")
+                    Button("Home", action: goHome)
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("homeButton")
+                }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 32)

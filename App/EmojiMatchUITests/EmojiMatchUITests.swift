@@ -73,6 +73,32 @@ final class EmojiMatchUITests: XCTestCase {
         XCTAssertEqual(app.switches["hapticsToggle"].value as? String, "1")
     }
 
+    func testLeaderboardStartsEmpty() {
+        launch()
+        element("leaderboardButton").tap()
+        XCTAssertTrue(element("leaderboardEmpty").waitForExistence(timeout: 5))
+        element("leaderboardDone").tap()
+        XCTAssertTrue(element("playButton").waitForExistence(timeout: 5))
+    }
+
+    func testFinishedRoundAppearsOnLeaderboardAndSurvivesRelaunch() {
+        let board = startGame(duration: 6)
+        tile(5, 0, on: board).press(forDuration: 0.1, thenDragTo: tile(7, 0, on: board))
+        waitForScore(100)
+        XCTAssertTrue(element("leaderboardRank").waitForExistence(timeout: 10))
+        element("resultsLeaderboardButton").tap()
+        let row = element("leaderboardRow1")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertEqual(row.value as? String, "100")
+        XCTAssertTrue(row.label.contains("this round"))
+        element("leaderboardDone").tap()
+
+        app.terminate()
+        launch(reset: false)
+        element("leaderboardButton").tap()
+        XCTAssertTrue(element("leaderboardRow1").waitForExistence(timeout: 5))
+    }
+
     func testDragAcrossThreeMatchingTilesScores() {
         let board = startGame()
         XCTAssertEqual(value("score"), 0)

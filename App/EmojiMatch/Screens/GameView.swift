@@ -59,8 +59,10 @@ private struct HUD: View {
     let seconds: Int
     let urgent: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .lastTextBaseline) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("SCORE").font(.system(.caption, design: .rounded, weight: .bold)).foregroundStyle(Theme.inkSoft)
                 Text("\(score)")
@@ -80,6 +82,12 @@ private struct HUD: View {
                     .font(.system(.title2, design: .rounded, weight: .black))
                     .monospacedDigit()
                     .foregroundStyle(Theme.pink)
+                    .keyframeAnimator(initialValue: 1.0, trigger: reduceMotion ? 0 : multiplier) { view, scale in
+                        view.scaleEffect(scale)
+                    } keyframes: { _ in
+                        SpringKeyframe(1.8, duration: 0.14)
+                        SpringKeyframe(1, duration: 0.3)
+                    }
                     .transition(.scale.combined(with: .opacity))
                     .accessibilityLabel("Multiplier \(multiplier)")
                     .accessibilityValue("\(multiplier)")

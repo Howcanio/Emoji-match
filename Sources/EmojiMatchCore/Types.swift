@@ -118,6 +118,33 @@ public struct MatchResolution: Equatable, Sendable {
     public let raisedMultiplier: Bool
 }
 
+/// How big a grab was, for celebration only: it never changes the score.
+public enum ComboTier: Int, Comparable, Sendable {
+    case none, nice, great, amazing, legendary
+
+    public init(grabSize: Int) {
+        switch grabSize {
+        case ..<4: self = .none
+        case 4: self = .nice
+        case 5: self = .great
+        case 6: self = .amazing
+        default: self = .legendary
+        }
+    }
+
+    public var title: String? {
+        switch self {
+        case .none: return nil
+        case .nice: return "Nice combo!"
+        case .great: return "Great combo!"
+        case .amazing: return "Amazing combo!"
+        case .legendary: return "Legendary combo!"
+        }
+    }
+
+    public static func < (lhs: ComboTier, rhs: ComboTier) -> Bool { lhs.rawValue < rhs.rawValue }
+}
+
 public enum SelectionRejection: Equatable, Sendable {
     case notAccepting
     case outOfBounds

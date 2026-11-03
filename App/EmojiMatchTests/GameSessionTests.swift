@@ -7,11 +7,21 @@ import XCTest
 private final class RecordingFeedback: GameFeedback {
     var selections: [Int] = []
     var matches = 0
+    var matchedTypes: [Int] = []
+    var matchedCounts: [Int] = []
+    var selectedTypes: [Int] = []
     var raises = 0
     var ticks = 0
     var endings: [Bool] = []
-    func tileSelected(index: Int) { selections.append(index) }
-    func matched() { matches += 1 }
+    func tileSelected(type: Int, index: Int) {
+        selections.append(index)
+        selectedTypes.append(type)
+    }
+    func matched(type: Int, count: Int) {
+        matches += 1
+        matchedTypes.append(type)
+        matchedCounts.append(count)
+    }
     func multiplierRaised() { raises += 1 }
     func timerTick() { ticks += 1 }
     func roundEnded(newBest: Bool) { endings.append(newBest) }
@@ -39,7 +49,7 @@ final class GameSessionTests: XCTestCase {
     }
 
     private func makeSession(_ engine: GameEngine) -> GameSession {
-        let session = GameSession(engine: engine, highScores: HighScoreStore(defaults: defaults), feedback: feedback)
+        let session = GameSession(engine: engine, highScores: HighScoreStore(defaults: defaults), leaderboard: LeaderboardStore(defaults: defaults), feedback: feedback)
         session.scene.reduceMotion = { false }
         session.scene.size = CGSize(width: 390, height: 520)
         return session
@@ -64,6 +74,74 @@ final class GameSessionTests: XCTestCase {
         session.touchDown(at: center(5, column))
         session.touchMoved(to: center(7, column))
         session.touchUp()
+    }
+
+    func testFeedbackReceivesTheEmojiTypeAndGrabSize() {
+        startRound()
+        playColumnMatch(column: 2)
+        XCTAssertEqual(feedback.selectedTypes, [2, 2])
+        XCTAssertEqual(feedback.matchedTypes, [2])
+        XCTAssertEqual(feedback.matchedCounts, [3])
+    }
+
+    func testPlainMatchShowsNoComboCallout() {
+        startRound()
+        playColumnMatch()
+        XCTAssertNil(session.scene.lastCallout)
+    }
+
+    func testLongGrabShowsComboCalloutAndBoardRecovers() {
+        startRound()
+        session.touchDown(at: center(4, 0))
+        session.touchMoved(to: center(7, 0))
+        session.touchUp()
+        XCTAssertEqual(session.scene.lastCallout, "Nice combo!")
+        run(seconds: 2)
+        XCTAssertEqual(session.phase, .playing)
+        XCTAssertEqual(session.scene.liveTileCount, 48)
+    }
+
+    func testComboCalloutStillShowsWithReduceMotion() {
+        session.scene.reduceMotion = { true }
+        run(seconds: GameScene.Timing.reducedIntro + 0.05)
+        session.touchDown(at: center(4, 0))
+        session.touchMoved(to: center(7, 0))
+        session.touchUp()
+        XCTAssertEqual(session.scene.lastCallout, "Nice combo!")
+    }
+
+    func testFinishedRoundIsAddedToLeaderboard() {
+        session = makeSession(GameEngine(config: GameConfig(duration: 1), seed: 1, initialTypes: Self.stripes))
+        startRound()
+        playColumnMatch()
+        run(seconds: 2)
+        let entries = LeaderboardStore(defaults: defaults).entries
+        XCTAssertEqual(entries.map(\.score), [100])
+        XCTAssertEqual(entries.first?.longestMatch, 3)
+        XCTAssertEqual(entries.first?.matches, 1)
+    }
+
+    func testEveryEmojiHasItsOwnAudibleUnclippedSound() {
+        let pops = (0..<SoundSynth.voices).map { SoundSynth.samples(for: .emojiPop(type: $0)) }
+        XCTAssertEqual(Set(pops).count, SoundSynth.voices, "Each emoji sounds different")
+        let taps = (0..<SoundSynth.voices).map { SoundSynth.samples(for: .emojiTap(type: $0, step: 0)) }
+        XCTAssertEqual(Set(taps).count, SoundSynth.voices)
+        for sound in SoundSynth.allSounds {
+            let peak = SoundSynth.samples(for: sound).map(abs).max() ?? 0
+            XCTAssertGreaterThan(peak, 0.05, "\(sound) is silent")
+            XCTAssertLessThan(peak, 1, "\(sound) clips")
+        }
+    }
+
+    func testChainTapsClimbInPitch() {
+        func crossings(_ samples: [Float]) -> Int {
+            zip(samples, samples.dropFirst()).filter { $0 < 0 && $1 >= 0 }.count
+        }
+        for type in 0..<SoundSynth.voices {
+            let low = crossings(SoundSynth.samples(for: .emojiTap(type: type, step: 0)))
+            let high = crossings(SoundSynth.samples(for: .emojiTap(type: type, step: SoundSynth.tapSteps - 1)))
+            XCTAssertGreaterThan(high, low, "voice \(type)")
+        }
     }
 
     func testSceneBuildsFullBoard() {
@@ -200,7 +278,7 @@ final class GameSessionTests: XCTestCase {
         XCTAssertEqual(feedback.endings, [true])
         session.showResults()
         session.showResults()
-        XCTAssertEqual(summaries, [RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 100, isNewBest: true)])
+        XCTAssertEqual(summaries, [RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 100, isNewBest: true, leaderboardRank: 1)])
         XCTAssertEqual(HighScoreStore(defaults: defaults).best, 100)
     }
 
@@ -213,7 +291,7 @@ final class GameSessionTests: XCTestCase {
         playColumnMatch()
         run(seconds: 2)
         session.showResults()
-        XCTAssertEqual(summary, RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 500, isNewBest: false))
+        XCTAssertEqual(summary, RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 500, isNewBest: false, leaderboardRank: 1))
         XCTAssertEqual(feedback.endings, [false])
     }
 
@@ -271,7 +349,7 @@ final class GameSessionTests: XCTestCase {
 
     func testSoundSynthBuildsEverySoundWithoutCrashing() {
         let synth = SoundSynth()
-        for sound in SoundSynth.Sound.allCases { synth.play(sound) }
+        for sound in SoundSynth.allSounds { synth.play(sound) }
     }
 
     func testEmojiCatalogHasDistinctEntryForEveryType() {

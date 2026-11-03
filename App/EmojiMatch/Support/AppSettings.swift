@@ -34,4 +34,6 @@ struct RoundSummary: Equatable {
     let longestMatch: Int
     let best: Int
     let isNewBest: Bool
+    /// Where this round landed on the leaderboard, if it placed.
+    let leaderboardRank: Int?
 }

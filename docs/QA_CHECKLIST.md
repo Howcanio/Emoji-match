@@ -28,6 +28,8 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 - [ ] Lifting with one or two tiles selected clears the selection with no score
 - [ ] First match of a round has a short 3-unit reach; later in the round, 5+ tile grabs are possible
 - [ ] A new longest grab shows the ×N badge, adds ×N to the HUD, and plays the level-up sound and haptic
+- [ ] Grabs of 4, 5, 6, and 7+ tiles show Nice, Great, Amazing, and Legendary combo callouts with growing effects
+- [ ] With Reduce Motion on, combos show only the callout: no shake, flash, rings, or flying emoji
 - [ ] Later matches score 100 × N, and the +points badge shows the right amount
 - [ ] Pacing: string growth (0.5 per win) and multiplier feel rewarding, not too fast or too slow over 60 seconds
 - [ ] All eight directions work, including diagonals
@@ -50,6 +52,9 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 - [ ] Silent switch mutes all game audio
 - [ ] Music from another app keeps playing and mixes with game sound
 - [ ] Sound off in Settings silences everything, after relaunch too
+- [ ] Each of the 8 emoji has its own recognizable selection and pop sound
+- [ ] Selection notes climb in pitch along a chain
+- [ ] 4+ tile grabs add a rising run that gets longer with the combo size
 - [ ] Haptics off in Settings stops all haptics, after relaunch too
 - [ ] Select haptic is gentle; match haptic is clearly stronger
 
@@ -68,7 +73,9 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 
 ## Results and persistence
 
-- [ ] Results show final score, personal best, matches, longest grab, Play Again, and Home
+- [ ] Results show final score, personal best, matches, longest grab, Play Again, Leaderboard, and Home
+- [ ] A placing round shows its rank, and the leaderboard marks it "This round"
+- [ ] The leaderboard keeps the top 10 scores after a relaunch
 - [ ] A record shows "New best!" and plays the fanfare
 - [ ] Play Again starts a fresh 60 seconds with a new board and score 0
 - [ ] Best score survives force-quit and device restart

@@ -34,6 +34,7 @@ final class GameScene: SKScene {
     private var fingerLocation: CGPoint?
     private var clock = RoundClock()
     private var builtBoard = false
+    private(set) var lastCallout: String?
 
     override init(size: CGSize) {
         super.init(size: size)
@@ -292,22 +293,30 @@ final class GameScene: SKScene {
         stringLayer.isHidden = false
         fadeOutString()
 
-        let popDuration = reduced ? Timing.reducedPop : Timing.pop
-        for cleared in resolution.cleared {
+        let tier = ComboTier(grabSize: resolution.cleared.count)
+        // Combos pop one tile after another along the string.
+        let stagger = reduced || tier == .none ? 0 : min(0.035, 0.14 / Double(resolution.cleared.count - 1))
+        let popDuration = (reduced ? Timing.reducedPop : Timing.pop) + stagger * Double(resolution.cleared.count - 1)
+        let vanishDuration = reduced ? Timing.reducedPop : Timing.pop
+        for (index, cleared) in resolution.cleared.enumerated() {
             guard let node = tileNodes.removeValue(forKey: cleared.tile.id) else { continue }
             node.setSelected(true, reduceMotion: reduced)
             let vanish: SKAction = reduced
-                ? .fadeOut(withDuration: popDuration)
-                : .group([.scale(to: 1.45, duration: popDuration), .fadeOut(withDuration: popDuration)])
+                ? .fadeOut(withDuration: vanishDuration)
+                : .group([.scale(to: 1.45, duration: vanishDuration), .fadeOut(withDuration: vanishDuration)])
             vanish.timingMode = .easeOut
+            let delay = stagger * Double(index)
             node.removeAllActions()
-            node.run(.sequence([vanish, .removeFromParent()]))
-            if !reduced { burstSparks(at: node.position, type: cleared.tile.type) }
+            node.run(.sequence([.wait(forDuration: delay), vanish, .removeFromParent()]))
+            if !reduced { burstSparks(at: node.position, type: cleared.tile.type, delay: delay) }
         }
         let points = resolution.cleared.map { scenePoint($0.position) }
         showBadge("+\(resolution.points)", over: points, lift: 0, reduced: reduced)
         if resolution.raisedMultiplier {
             showBadge("×\(resolution.multiplier)!", over: points, lift: tileSize * 0.6, reduced: reduced)
+        }
+        if tier != .none {
+            celebrate(tier, type: resolution.cleared[0].tile.type, over: points, reduced: reduced)
         }
 
         for node in tileNodes.values { node.setDimmed(false) }
@@ -362,7 +371,7 @@ final class GameScene: SKScene {
         node.run(.sequence([.wait(forDuration: delay), fall, squash]))
     }
 
-    private func burstSparks(at center: CGPoint, type: Int) {
+    private func burstSparks(at center: CGPoint, type: Int, delay: TimeInterval) {
         guard let textures else { return }
         let color = EmojiCatalog.entry(for: type).glow
         for index in 0..<8 {
@@ -372,6 +381,7 @@ final class GameScene: SKScene {
             spark.color = color
             spark.colorBlendFactor = 1
             spark.position = center
+            spark.alpha = 0
             spark.zPosition = TileNode.Z.effects
             boardLayer.addChild(spark)
             let travel = tileSize * .random(in: 0.5...0.85)
@@ -381,8 +391,124 @@ final class GameScene: SKScene {
                 .scale(to: 0.3, duration: 0.32),
             ])
             flight.timingMode = .easeOut
-            spark.run(.sequence([flight, .removeFromParent()]))
+            spark.run(.sequence([.wait(forDuration: delay), .fadeIn(withDuration: 0), flight, .removeFromParent()]))
         }
+    }
+
+    // MARK: - Combo animation
+
+    /// Bigger grabs layer on more: callout, then rings and flying emoji, then shake, then flash.
+    private func celebrate(_ tier: ComboTier, type: Int, over points: [CGPoint], reduced: Bool) {
+        let center = CGPoint(
+            x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+            y: points.map(\.y).reduce(0, +) / CGFloat(points.count)
+        )
+        if let title = tier.title { showCallout(title, tier: tier, awayFrom: center, reduced: reduced) }
+        guard !reduced else { return }
+        let color = EmojiCatalog.entry(for: type).glow
+        showRings(at: center, count: tier.rawValue, color: color)
+        launchEmoji(type: type, from: points, count: tier.rawValue * 5)
+        if tier >= .great { shakeBoard(strength: tier.rawValue - 1) }
+        if tier >= .amazing { flashBoard(color: color) }
+    }
+
+    /// Sits in the half of the board away from the grab so it doesn't cover the point badges.
+    private func showCallout(_ text: String, tier: ComboTier, awayFrom center: CGPoint, reduced: Bool) {
+        guard let textures else { return }
+        lastCallout = text
+        let callout = SKSpriteNode(texture: textures.badge(text))
+        let scale = min(1 + 0.12 * CGFloat(tier.rawValue), (size.width - Self.padding * 2) / callout.size.width)
+        callout.position = CGPoint(x: 0, y: center.y > 0 ? -size.height * 0.16 : size.height * 0.16)
+        callout.zPosition = TileNode.Z.effects + 2
+        boardLayer.addChild(callout)
+        if reduced {
+            callout.setScale(scale)
+            callout.run(.sequence([.wait(forDuration: 0.6), .fadeOut(withDuration: 0.2), .removeFromParent()]))
+            return
+        }
+        callout.setScale(0.3)
+        callout.zRotation = -0.12
+        let grow = SKAction.scale(to: scale * 1.2, duration: 0.14)
+        grow.timingMode = .easeOut
+        let settle = SKAction.group([.scale(to: scale, duration: 0.1), .rotate(toAngle: 0, duration: 0.1)])
+        callout.run(.sequence([
+            grow,
+            settle,
+            .wait(forDuration: 0.4),
+            .group([.fadeOut(withDuration: 0.22), .moveBy(x: 0, y: tileSize * 0.4, duration: 0.22)]),
+            .removeFromParent(),
+        ]))
+    }
+
+    private func showRings(at center: CGPoint, count: Int, color: UIColor) {
+        for index in 0..<count {
+            let ring = SKShapeNode(circleOfRadius: tileSize * 0.5)
+            ring.strokeColor = color
+            ring.lineWidth = tileSize * 0.08
+            ring.fillColor = .clear
+            ring.position = center
+            ring.alpha = 0
+            ring.zPosition = TileNode.Z.effects - 1
+            boardLayer.addChild(ring)
+            let expand = SKAction.group([
+                .scale(to: 2.5 + CGFloat(count), duration: 0.45),
+                .fadeOut(withDuration: 0.45),
+            ])
+            expand.timingMode = .easeOut
+            ring.run(.sequence([
+                .wait(forDuration: Double(index) * 0.08),
+                .fadeIn(withDuration: 0),
+                expand,
+                .removeFromParent(),
+            ]))
+        }
+    }
+
+    /// The popped emoji leap out of the board, tumble, and fall away.
+    private func launchEmoji(type: Int, from points: [CGPoint], count: Int) {
+        guard let textures, !points.isEmpty else { return }
+        for index in 0..<count {
+            let piece = SKSpriteNode(texture: textures.emoji(type))
+            piece.size = CGSize(width: tileSize * 0.8, height: tileSize * 0.8)
+            piece.position = points[index % points.count]
+            piece.zPosition = TileNode.Z.effects
+            boardLayer.addChild(piece)
+            let drift = tileSize * .random(in: -1.6...1.6)
+            let rise = SKAction.moveBy(x: drift * 0.4, y: tileSize * .random(in: 0.9...2), duration: 0.24)
+            rise.timingMode = .easeOut
+            let drop = SKAction.moveBy(x: drift * 0.6, y: -tileSize * .random(in: 2.5...4), duration: 0.46)
+            drop.timingMode = .easeIn
+            piece.run(.sequence([
+                .group([
+                    .sequence([rise, drop]),
+                    .rotate(byAngle: .random(in: -4...4), duration: 0.7),
+                    .sequence([.wait(forDuration: 0.4), .fadeOut(withDuration: 0.3)]),
+                ]),
+                .removeFromParent(),
+            ]))
+        }
+    }
+
+    private func shakeBoard(strength: Int) {
+        let amount = tileSize * 0.04 * CGFloat(strength)
+        var steps: [SKAction] = []
+        for step in 0..<6 {
+            let sign: CGFloat = step.isMultiple(of: 2) ? 1 : -1
+            let fade = CGFloat(6 - step) / 6
+            steps.append(.move(to: CGPoint(x: sign * amount * fade, y: -sign * amount * fade * 0.5), duration: 0.035))
+        }
+        steps.append(.move(to: .zero, duration: 0.03))
+        boardLayer.removeAction(forKey: "shake")
+        boardLayer.run(.sequence(steps), withKey: "shake")
+    }
+
+    /// Deliberately faint and single: a color wash, not a strobe.
+    private func flashBoard(color: UIColor) {
+        let flash = SKSpriteNode(color: color, size: size)
+        flash.alpha = 0.22
+        flash.zPosition = TileNode.Z.effects - 2
+        boardLayer.addChild(flash)
+        flash.run(.sequence([.fadeOut(withDuration: 0.3), .removeFromParent()]))
     }
 
     private func showBadge(_ text: String, over points: [CGPoint], lift: CGFloat, reduced: Bool) {

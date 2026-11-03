@@ -20,6 +20,7 @@ final class GameSession: ObservableObject {
     var onFinished: ((RoundSummary) -> Void)?
 
     private let highScores: HighScoreStore
+    private let leaderboard: LeaderboardStore
     private let feedback: GameFeedback
     private var introRemaining: TimeInterval?
     private var resolveRemaining: TimeInterval?
@@ -29,9 +30,15 @@ final class GameSession: ObservableObject {
     static let urgentSeconds = 10
     private static let tickingSeconds = 5
 
-    init(engine: GameEngine, highScores: HighScoreStore = HighScoreStore(), feedback: GameFeedback) {
+    init(
+        engine: GameEngine,
+        highScores: HighScoreStore = HighScoreStore(),
+        leaderboard: LeaderboardStore = LeaderboardStore(),
+        feedback: GameFeedback
+    ) {
         self.engine = engine
         self.highScores = highScores
+        self.leaderboard = leaderboard
         self.feedback = feedback
         self.secondsLeft = Int(engine.remaining.rounded(.up))
         self.stringGrowth = engine.stringLength / engine.config.lengthCap
@@ -97,11 +104,11 @@ final class GameSession: ObservableObject {
         for event in events {
             let duration = scene.apply(event)
             switch event {
-            case .tileSelected(_, _, let index):
-                feedback.tileSelected(index: index)
+            case .tileSelected(let tile, _, let index):
+                feedback.tileSelected(type: tile.type, index: index)
             case .matched(let resolution):
                 resolveRemaining = duration ?? 0
-                feedback.matched()
+                feedback.matched(type: resolution.cleared[0].tile.type, count: resolution.cleared.count)
                 if resolution.raisedMultiplier { feedback.multiplierRaised() }
             case .roundEnded(let score, let matches):
                 finishRound(score: score, matches: matches)
@@ -120,12 +127,20 @@ final class GameSession: ObservableObject {
 
     private func finishRound(score: Int, matches: Int) {
         let isNewBest = highScores.record(score)
+        let rank = leaderboard.record(LeaderboardEntry(
+            score: score,
+            matches: matches,
+            longestMatch: engine.longestMatch,
+            multiplier: engine.multiplier,
+            date: Date()
+        ))
         pendingSummary = RoundSummary(
             score: score,
             matches: matches,
             longestMatch: engine.longestMatch,
             best: highScores.best,
-            isNewBest: isNewBest
+            isNewBest: isNewBest,
+            leaderboardRank: rank
         )
         feedback.roundEnded(newBest: isNewBest)
     }
