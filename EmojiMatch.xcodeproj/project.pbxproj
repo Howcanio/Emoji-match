@@ -1,0 +1,316 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000000000000000000002A /* EmojiMatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000029 /* EmojiMatchCore */; };
+		AA000000000000000000002B /* EmojiMatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA000000000000000000002C /* EmojiMatchCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0000000000000000000020 = {isa = PBXContainerItemProxy; containerPortal = AA000000000000000000000C; proxyType = 1; remoteGlobalIDString = AA0000000000000000000001; remoteInfo = EmojiMatch; };
+		AA0000000000000000000021 = {isa = PBXContainerItemProxy; containerPortal = AA000000000000000000000C; proxyType = 1; remoteGlobalIDString = AA0000000000000000000001; remoteInfo = EmojiMatch; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AA0000000000000000000004 /* EmojiMatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EmojiMatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000005 /* EmojiMatchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EmojiMatchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000006 /* EmojiMatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EmojiMatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA0000000000000000000007 /* EmojiMatch */ = {isa = PBXFileSystemSynchronizedRootGroup; path = App/EmojiMatch; sourceTree = "<group>"; };
+		AA0000000000000000000008 /* EmojiMatchTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = App/EmojiMatchTests; sourceTree = "<group>"; };
+		AA0000000000000000000009 /* EmojiMatchUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = App/EmojiMatchUITests; sourceTree = "<group>"; };
+		AA000000000000000000000D /* EmojiMatchCoreTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Tests/EmojiMatchCoreTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA0000000000000000000015 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AA000000000000000000002A); runOnlyForDeploymentPostprocessing = 0; };
+		AA0000000000000000000018 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AA000000000000000000002B); runOnlyForDeploymentPostprocessing = 0; };
+		AA000000000000000000001B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA000000000000000000000A = {isa = PBXGroup; children = (AA0000000000000000000007, AA0000000000000000000008, AA000000000000000000000D, AA0000000000000000000009, AA000000000000000000000B); sourceTree = "<group>"; };
+		AA000000000000000000000B /* Products */ = {isa = PBXGroup; children = (AA0000000000000000000004, AA0000000000000000000005, AA0000000000000000000006); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA0000000000000000000001 /* EmojiMatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000033;
+			buildPhases = (AA0000000000000000000014, AA0000000000000000000015, AA0000000000000000000016);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (AA0000000000000000000007);
+			name = EmojiMatch;
+			packageProductDependencies = (AA0000000000000000000029);
+			productName = EmojiMatch;
+			productReference = AA0000000000000000000004;
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000002 /* EmojiMatchTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000034;
+			buildPhases = (AA0000000000000000000017, AA0000000000000000000018, AA0000000000000000000019);
+			buildRules = ();
+			dependencies = (AA000000000000000000001E);
+			fileSystemSynchronizedGroups = (AA0000000000000000000008, AA000000000000000000000D);
+			name = EmojiMatchTests;
+			packageProductDependencies = (AA000000000000000000002C);
+			productName = EmojiMatchTests;
+			productReference = AA0000000000000000000005;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AA0000000000000000000003 /* EmojiMatchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000035;
+			buildPhases = (AA000000000000000000001A, AA000000000000000000001B, AA000000000000000000001C);
+			buildRules = ();
+			dependencies = (AA000000000000000000001F);
+			fileSystemSynchronizedGroups = (AA0000000000000000000009);
+			name = EmojiMatchUITests;
+			productName = EmojiMatchUITests;
+			productReference = AA0000000000000000000006;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA000000000000000000000C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					AA0000000000000000000002 = {TestTargetID = AA0000000000000000000001; };
+					AA0000000000000000000003 = {TestTargetID = AA0000000000000000000001; };
+				};
+			};
+			buildConfigurationList = AA0000000000000000000032;
+			compatibilityVersion = "Xcode 15.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = AA000000000000000000000A;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (AA0000000000000000000028);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AA000000000000000000000B;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (AA0000000000000000000001, AA0000000000000000000002, AA0000000000000000000003);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA0000000000000000000016 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		AA0000000000000000000019 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		AA000000000000000000001C = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA0000000000000000000014 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		AA0000000000000000000017 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		AA000000000000000000001A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA000000000000000000001E = {isa = PBXTargetDependency; target = AA0000000000000000000001; targetProxy = AA0000000000000000000020; };
+		AA000000000000000000001F = {isa = PBXTargetDependency; target = AA0000000000000000000001; targetProxy = AA0000000000000000000021; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA000000000000000000003C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA000000000000000000003D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA000000000000000000003E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Emoji Match";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AA000000000000000000003F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Emoji Match";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AA0000000000000000000040 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EmojiMatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EmojiMatch";
+			};
+			name = Debug;
+		};
+		AA0000000000000000000041 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EmojiMatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EmojiMatch";
+			};
+			name = Release;
+		};
+		AA0000000000000000000042 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = EmojiMatch;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000043 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.howcan.emojimatch.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = EmojiMatch;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA0000000000000000000032 /* project */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (AA000000000000000000003C, AA000000000000000000003D);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000033 /* EmojiMatch */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (AA000000000000000000003E, AA000000000000000000003F);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000034 /* EmojiMatchTests */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (AA0000000000000000000040, AA0000000000000000000041);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000035 /* EmojiMatchUITests */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (AA0000000000000000000042, AA0000000000000000000043);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AA0000000000000000000028 /* XCLocalSwiftPackageReference "." */ = {isa = XCLocalSwiftPackageReference; relativePath = .; };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000029 /* EmojiMatchCore */ = {isa = XCSwiftPackageProductDependency; productName = EmojiMatchCore; };
+		AA000000000000000000002C /* EmojiMatchCore */ = {isa = XCSwiftPackageProductDependency; productName = EmojiMatchCore; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA000000000000000000000C;
+}

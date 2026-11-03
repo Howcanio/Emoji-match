@@ -1,105 +1,321 @@
 import Foundation
 
-public struct Position: Hashable, Sendable {
-    public let row: Int
-    public let column: Int
-    public init(_ row: Int, _ column: Int) { self.row = row; self.column = column }
-}
-public struct GameConfig: Sendable {
-    public let rows: Int
-    public let columns: Int
-    public let types: Int
-    public let maxLength: Double
-    public let duration: TimeInterval
-    public init(rows: Int = 8, columns: Int = 6, types: Int = 8, maxLength: Double = 5, duration: TimeInterval = 60) {
-        self.rows = rows; self.columns = columns; self.types = types; self.maxLength = maxLength; self.duration = duration
-    }
-}
+/// The rules of Emoji Match, independent of rendering and UI.
+///
+/// State machine (`phase`):
+///
+///     ready ──startRound──▶ playing ◀──cancel/release── selecting
+///                             ▲  │ begin                    │ third tile
+///                             │  └──────────▶ selecting     ▼
+///                             └──finishResolving── resolvingMatch
+///     any active phase ── timer expiry ──▶ gameOver
+///
+/// Expiry during `resolvingMatch` lets the committed match finish; the round ends on
+/// `finishResolving()`. `isPaused` is orthogonal: it freezes the clock and input in any phase.
+/// The clock keeps running during `resolvingMatch` because the round is 60 real seconds.
 public struct GameEngine {
+    /// Tolerance for floating-point sums at the exact string limit.
+    static let lengthTolerance = 1e-9
+    /// Spacing of interpolated touch samples, in tile units. Well under a tile's hit diameter.
+    static let sampleStep = 0.1
+    /// While dragging, a tile only registers within this distance of its center, so that a
+    /// diagonal drag between two tiles doesn't catch their corners.
+    public static let hitRadius = 0.45
+
     public let config: GameConfig
-    public private(set) var board: [[Int]]
+    public private(set) var board: Board
+    public private(set) var phase: GamePhase = .ready
+    public private(set) var isPaused = false
     public private(set) var score = 0
+    public private(set) var matchCount = 0
     public private(set) var remaining: TimeInterval
     public private(set) var selection: [Position] = []
-    public private(set) var finished = false
-    private var randomType: () -> Int
+    /// True from a completed match until that finger lifts.
+    public private(set) var awaitingRelease = false
 
-    public init(config: GameConfig = GameConfig(), randomType: @escaping () -> Int = { Int.random(in: 0..<8) }) {
+    private var generator: SeededGenerator
+    private var scriptedTypes: ArraySlice<Int>
+    private var nextTileID = 0
+    private var fingerDown = false
+    private var lastPoint: BoardPoint?
+    private var lastHit: Position?
+
+    /// - Parameters:
+    ///   - seed: Determines the board and refills.
+    ///   - initialTypes: Optional fixed starting grid (rows of tile types).
+    ///   - scriptedRefills: Tile types to use for refills before falling back to the seed.
+    public init(
+        config: GameConfig = GameConfig(),
+        seed: UInt64 = .random(in: .min ... .max),
+        initialTypes: [[Int]]? = nil,
+        scriptedRefills: [Int] = []
+    ) {
         self.config = config
-        self.randomType = randomType
         self.remaining = config.duration
-        self.board = Array(repeating: Array(repeating: 0, count: config.columns), count: config.rows)
-        refillAll()
+        self.generator = SeededGenerator(seed: seed)
+        self.scriptedTypes = scriptedRefills[...]
+        self.board = Board(rows: 0, columns: 0, cells: [])
+        var cells: [Tile] = []
+        for row in 0..<config.rows {
+            for column in 0..<config.columns {
+                cells.append(makeTile(type: initialTypes.map { $0[row][column] }))
+            }
+        }
+        board = Board(rows: config.rows, columns: config.columns, cells: cells)
+        _ = ensureSolvable()
     }
-    public mutating func start(at p: Position) {
-        guard !finished, valid(p) else { return }
-        selection = [p]
+
+    // MARK: - Round lifecycle
+
+    @discardableResult
+    public mutating func startRound() -> [GameEvent] {
+        guard phase == .ready else { return [] }
+        phase = .playing
+        return [.roundStarted] + beginFromHeldFinger()
     }
-    public mutating func visit(_ p: Position) -> Bool {
-        guard !finished, valid(p), let first = selection.first, selection.count < 3,
-              !selection.contains(p), board[p.row][p.column] == board[first.row][first.column],
-              let last = selection.last else { return false }
-        let used = zip(selection, selection.dropFirst()).reduce(0.0) { $0 + distance($1.0, $1.1) }
-        guard used + distance(last, p) <= config.maxLength + 1e-9 else { return false }
-        selection.append(p)
-        if selection.count == 3 { clearMatch(); return true }
-        return false
-    }
-    public mutating func cancel() { selection.removeAll() }
-    public mutating func tick(_ seconds: TimeInterval) {
-        guard !finished else { return }
+
+    @discardableResult
+    public mutating func tick(_ seconds: TimeInterval) -> [GameEvent] {
+        guard !isPaused, seconds.isFinite, phase != .ready, phase != .gameOver, remaining > 0 else { return [] }
         remaining = max(0, remaining - max(0, seconds))
-        if remaining == 0 { finished = true; cancel() }
+        guard remaining == 0, phase != .resolvingMatch else { return [] }
+        return endRound()
     }
-    public func hasMatch() -> Bool {
-        for r in 0..<config.rows { for c in 0..<config.columns {
-            let a = Position(r,c)
-            for s in 0..<config.rows { for t in 0..<config.columns {
-                let b = Position(s,t)
-                if a == b || board[r][c] != board[s][t] { continue }
-                let ab = distance(a,b)
-                if ab > config.maxLength { continue }
-                for u in 0..<config.rows { for v in 0..<config.columns {
-                    let d = Position(u,v)
-                    if d != a && d != b && board[u][v] == board[r][c] && ab + distance(b,d) <= config.maxLength { return true }
-                }}
-            }}
-        }}
-        return false
+
+    /// Call when the match animation has finished.
+    @discardableResult
+    public mutating func finishResolving() -> [GameEvent] {
+        guard phase == .resolvingMatch else { return [] }
+        if remaining == 0 { return [.resolvingFinished] + endRound() }
+        phase = .playing
+        return [.resolvingFinished] + beginFromHeldFinger()
     }
-    private func valid(_ p: Position) -> Bool { (0..<config.rows).contains(p.row) && (0..<config.columns).contains(p.column) }
-    private func distance(_ a: Position, _ b: Position) -> Double {
-        hypot(Double(a.row-b.row), Double(a.column-b.column))
+
+    /// Freezes the clock and drops any gesture in progress; a committed match stays committed.
+    @discardableResult
+    public mutating func pause() -> [GameEvent] {
+        guard !isPaused else { return [] }
+        isPaused = true
+        return releaseFinger()
     }
-    private mutating func clearMatch() {
-        let cleared = selection
-        selection.removeAll()
-        score += 100
-        for col in Set(cleared.map(\.column)) {
-            let removedRows = Set(cleared.filter { $0.column == col }.map(\.row))
-            let survivors = (0..<config.rows).filter { !removedRows.contains($0) }.map { board[$0][col] }
-            let replacements = (0..<(config.rows-survivors.count)).map { _ in nextType() }
-            for (row, type) in (replacements + survivors).enumerated() { board[row][col] = type }
+
+    public mutating func resume() { isPaused = false }
+
+    // MARK: - Selection
+
+    public var canAcceptInput: Bool { !isPaused && (phase == .playing || phase == .selecting) }
+
+    /// Length of the string between selected tiles, in tile units.
+    public var selectionLength: Double {
+        zip(selection, selection.dropFirst()).reduce(0) { $0 + $1.0.distance(to: $1.1) }
+    }
+
+    public var remainingLength: Double { max(0, config.maxLength - selectionLength) }
+
+    /// Whether `position` would be accepted as the next tile of the current selection.
+    public func canExtend(to position: Position) -> Bool {
+        rejectionForExtending(to: position) == nil
+    }
+
+    public mutating func beginSelection(at position: Position) -> SelectionResult {
+        guard !isPaused, phase == .playing, !awaitingRelease else { return .rejected(.notAccepting) }
+        guard config.contains(position) else { return .rejected(.outOfBounds) }
+        selection = [position]
+        phase = .selecting
+        return .selected
+    }
+
+    public mutating func extendSelection(to position: Position) -> SelectionResult {
+        if let rejection = rejectionForExtending(to: position) { return .rejected(rejection) }
+        selection.append(position)
+        guard selection.count == config.matchSize else { return .selected }
+        return .matched(commitMatch())
+    }
+
+    public mutating func cancelSelection() -> [Position] {
+        guard phase == .selecting else { return [] }
+        let cancelled = selection
+        selection = []
+        phase = .playing
+        return cancelled
+    }
+
+    private func rejectionForExtending(to position: Position) -> SelectionRejection? {
+        guard !isPaused else { return .notAccepting }
+        guard phase == .selecting, let first = selection.first, let last = selection.last else {
+            return .noActiveSelection
         }
-        ensureSolvable()
+        guard config.contains(position) else { return .outOfBounds }
+        guard !selection.contains(position) else { return .duplicateTile }
+        guard board[position].type == board[first].type else { return .typeMismatch }
+        guard selectionLength + last.distance(to: position) <= config.maxLength + Self.lengthTolerance else {
+            return .stringTooLong
+        }
+        return nil
     }
-    private mutating func refillAll() {
-        for r in 0..<config.rows { for c in 0..<config.columns { board[r][c] = nextType() } }
-        ensureSolvable()
+
+    // MARK: - Touch input
+
+    /// A new finger. Only one finger is tracked, so this also implies any earlier finger lifted.
+    @discardableResult
+    public mutating func touchDown(at point: BoardPoint) -> [GameEvent] {
+        guard !isPaused, phase != .gameOver, point.isFinite else { return [] }
+        var events = releaseFinger()
+        fingerDown = true
+        lastPoint = point
+        events += beginFromHeldFinger()
+        return events
     }
-    private mutating func ensureSolvable() {
-        guard config.rows * config.columns >= 3 else { return }
-        if hasMatch() { return }
-        // Force a guaranteed valid horizontal or vertical trio rather than an unbounded shuffle.
-        let type = nextType()
-        if config.columns >= 3 {
-            for c in 0..<3 { board[0][c] = type }
-        } else if config.rows >= 3 {
-            for r in 0..<3 { board[r][0] = type }
+
+    /// Feeds a finger movement. The path since the last sample is interpolated so that a fast
+    /// swipe registers every tile it crossed, in order.
+    @discardableResult
+    public mutating func touchMoved(to point: BoardPoint) -> [GameEvent] {
+        guard fingerDown, point.isFinite, let previous = lastPoint else { return [] }
+        lastPoint = point
+        guard canAcceptInput, !awaitingRelease else { return [] }
+        var events: [GameEvent] = []
+        for sample in Self.samples(from: previous, to: point) {
+            guard let tile = hitTile(at: sample) else {
+                lastHit = nil
+                continue
+            }
+            guard tile != lastHit else { continue }
+            lastHit = tile
+            if phase == .playing {
+                _ = beginSelection(at: tile)
+                events.append(selectedEvent(for: tile))
+                continue
+            }
+            switch extendSelection(to: tile) {
+            case .selected:
+                events.append(selectedEvent(for: tile))
+            case .matched(let resolution):
+                events.append(.matched(resolution))
+                return events
+            case .rejected:
+                break
+            }
+        }
+        return events
+    }
+
+    /// The finger lifted or the system cancelled the touch. Drops an incomplete selection.
+    @discardableResult
+    public mutating func touchUp() -> [GameEvent] { releaseFinger() }
+
+    private mutating func releaseFinger() -> [GameEvent] {
+        fingerDown = false
+        awaitingRelease = false
+        lastPoint = nil
+        lastHit = nil
+        let cancelled = cancelSelection()
+        return cancelled.isEmpty ? [] : [.selectionCancelled(cancelled)]
+    }
+
+    /// Starts a selection under a finger that is already down, so a touch landing during the
+    /// short lock-out of the intro or a match animation isn't lost.
+    private mutating func beginFromHeldFinger() -> [GameEvent] {
+        guard fingerDown, !awaitingRelease, let point = lastPoint else { return [] }
+        let tile = Position(Int(floor(point.y)), Int(floor(point.x)))
+        guard config.contains(tile), case .selected = beginSelection(at: tile) else { return [] }
+        lastHit = tile
+        return [selectedEvent(for: tile)]
+    }
+
+    private func selectedEvent(for position: Position) -> GameEvent {
+        .tileSelected(board[position], at: position, index: selection.count - 1)
+    }
+
+    private func hitTile(at point: BoardPoint) -> Position? {
+        let tile = Position(Int(floor(point.y)), Int(floor(point.x)))
+        guard config.contains(tile), point.distance(to: BoardPoint(center: tile)) <= Self.hitRadius else {
+            return nil
+        }
+        return tile
+    }
+
+    /// Evenly spaced points after `start`, ending exactly at `end`.
+    static func samples(from start: BoardPoint, to end: BoardPoint) -> [BoardPoint] {
+        let count = min(4096, max(1, Int((start.distance(to: end) / sampleStep).rounded(.up))))
+        return (1...count).map { index in
+            let t = Double(index) / Double(count)
+            return BoardPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t)
         }
     }
-    private mutating func nextType() -> Int {
-        let raw = randomType()
-        return ((raw % config.types) + config.types) % config.types
+
+    // MARK: - Match resolution
+
+    private mutating func commitMatch() -> MatchResolution {
+        let cleared = selection.map { ClearedTile(tile: board[$0], position: $0) }
+        selection = []
+        score += config.pointsPerMatch
+        matchCount += 1
+        phase = .resolvingMatch
+        awaitingRelease = true
+
+        var moves: [TileMove] = []
+        var spawns: [TileSpawn] = []
+        for column in Set(cleared.map(\.position.column)).sorted() {
+            let removedRows = Set(cleared.filter { $0.position.column == column }.map(\.position.row))
+            var writeRow = config.rows - 1
+            for readRow in stride(from: config.rows - 1, through: 0, by: -1) where !removedRows.contains(readRow) {
+                let tile = board[Position(readRow, column)]
+                if writeRow != readRow {
+                    moves.append(TileMove(tile: tile, from: Position(readRow, column), to: Position(writeRow, column)))
+                    board[Position(writeRow, column)] = tile
+                }
+                writeRow -= 1
+            }
+            let newCount = writeRow + 1
+            for row in 0..<newCount {
+                let tile = makeTile(type: nil)
+                board[Position(row, column)] = tile
+                spawns.append(TileSpawn(tile: tile, to: Position(row, column), entryRow: row - newCount))
+            }
+        }
+        return MatchResolution(
+            cleared: cleared,
+            moves: moves,
+            spawns: spawns,
+            reshuffle: ensureSolvable(),
+            points: config.pointsPerMatch
+        )
+    }
+
+    /// Reshuffles the existing tiles if no valid match exists, keeping the tile set intact.
+    /// Returns the resulting tile movements.
+    private mutating func ensureSolvable() -> [TileMove] {
+        guard board.findMatch(maxLength: config.maxLength) == nil else { return [] }
+        let before = board
+        for _ in 0..<32 {
+            board.shuffle(using: &generator)
+            if board.findMatch(maxLength: config.maxLength) != nil { break }
+        }
+        if board.findMatch(maxLength: config.maxLength) == nil { board.gatherTrio() }
+        var origins: [Int: Position] = [:]
+        for position in before.positions { origins[before[position].id] = position }
+        return board.positions.compactMap { position in
+            let tile = board[position]
+            guard let origin = origins[tile.id], origin != position else { return nil }
+            return TileMove(tile: tile, from: origin, to: position)
+        }
+    }
+
+    private mutating func endRound() -> [GameEvent] {
+        var events: [GameEvent] = []
+        let cancelled = cancelSelection()
+        if !cancelled.isEmpty { events.append(.selectionCancelled(cancelled)) }
+        fingerDown = false
+        awaitingRelease = false
+        phase = .gameOver
+        events.append(.roundEnded(score: score, matches: matchCount))
+        return events
+    }
+
+    private mutating func makeTile(type: Int?) -> Tile {
+        defer { nextTileID += 1 }
+        let raw = type ?? scriptedTypes.popFirst() ?? Int.random(in: 0..<config.types, using: &generator)
+        return Tile(id: nextTileID, type: ((raw % config.types) + config.types) % config.types)
     }
 }
