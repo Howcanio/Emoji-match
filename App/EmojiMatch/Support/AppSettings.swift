@@ -31,6 +31,7 @@ struct LaunchOptions {
 struct RoundSummary: Equatable {
     let score: Int
     let matches: Int
+    let longestMatch: Int
     let best: Int
     let isNewBest: Bool
 }

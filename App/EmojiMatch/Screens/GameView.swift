@@ -15,14 +15,14 @@ struct GameView: View {
     var body: some View {
         VStack(spacing: 10) {
             Spacer(minLength: 0)
-            HUD(score: session.score, seconds: session.secondsLeft, urgent: session.isUrgent)
-            StringGauge(remaining: session.stringRemaining)
+            HUD(score: session.score, multiplier: session.multiplier, seconds: session.secondsLeft, urgent: session.isUrgent)
+            StringGauge(growth: session.stringGrowth, remaining: session.stringRemaining)
             GameBoardView(scene: session.scene)
                 .aspectRatio(boardAspect, contentMode: .fit)
                 .layoutPriority(1)
                 .accessibilityElement()
                 .accessibilityLabel("Game board, 6 columns by 8 rows")
-                .accessibilityHint("Touch an emoji and drag to two matching emojis to pop them")
+                .accessibilityHint("Touch an emoji, drag across at least two matching emojis, then lift to pop them")
                 .accessibilityIdentifier("gameBoard")
             Spacer(minLength: 0)
         }
@@ -55,6 +55,7 @@ struct GameView: View {
 
 private struct HUD: View {
     let score: Int
+    let multiplier: Int
     let seconds: Int
     let urgent: Bool
 
@@ -73,6 +74,17 @@ private struct HUD: View {
             .accessibilityLabel("Score \(score)")
             .accessibilityValue("\(score)")
             .accessibilityIdentifier("score")
+
+            if multiplier > 1 {
+                Text("×\(multiplier)")
+                    .font(.system(.title2, design: .rounded, weight: .black))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.pink)
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityLabel("Multiplier \(multiplier)")
+                    .accessibilityValue("\(multiplier)")
+                    .accessibilityIdentifier("multiplier")
+            }
 
             Spacer()
 
@@ -94,24 +106,27 @@ private struct HUD: View {
     }
 }
 
-/// A thin bar showing how much string is left. Only visible while connecting.
+/// The string as a bar: the track lengthens with every match, and the fill shows what's left
+/// of it during a connection.
 private struct StringGauge: View {
-    let remaining: Double?
+    let growth: Double
+    let remaining: Double
 
     var body: some View {
         GeometryReader { space in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.ink.opacity(0.08))
+                Capsule().fill(Theme.ink.opacity(0.1))
                 Capsule()
                     .fill(Theme.brand)
-                    .frame(width: space.size.width * (remaining ?? 0))
-                    .animation(.easeOut(duration: 0.12), value: remaining)
+                    .frame(width: space.size.width * growth * remaining)
             }
+            .frame(width: space.size.width * growth)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.easeOut(duration: 0.15), value: remaining)
+            .animation(.snappy(duration: 0.25), value: growth)
         }
         .frame(height: 5)
         .padding(.horizontal, 16)
-        .opacity(remaining == nil ? 0 : 1)
-        .animation(.easeOut(duration: 0.12), value: remaining == nil)
         .accessibilityHidden(true)
     }
 }

@@ -2,7 +2,7 @@
 
 **Connect 3. Pop. Repeat.**
 
-A fast, one-finger iOS puzzle game. Touch an emoji, drag a glowing string to two more of the same emoji, and they pop. You have 60 seconds. Fully offline, with no accounts, ads, purchases, or backend.
+A fast, one-finger iOS puzzle game. Touch an emoji, drag a glowing string across more of the same emoji, and lift to pop them. Every win makes your string longer, so you can grab more, and each new longest grab raises your multiplier. You have 60 seconds. Fully offline, with no accounts, ads, purchases, or backend.
 
 ## Requirements
 
@@ -39,13 +39,15 @@ The manual test matrix for a physical iPhone is in [docs/QA_CHECKLIST.md](docs/Q
 | | |
 |---|---|
 | Board | 6 columns × 8 rows, 8 emoji types |
-| Match | Exactly 3 identical emojis; completes automatically on the third |
+| Match | 3 or more identical emojis; pops when you lift, or at once when nothing more is in reach |
 | Connections | Any direction, including diagonals; other emojis are skipped; no tile reuse |
-| String | At most 5 tile widths, cumulative center-to-center Euclidean distance |
-| Score | 100 per match, no multipliers, no cascades |
+| String | Starts at 3 tile widths, grows 0.5 per match, capped at 12; measured as cumulative center-to-center Euclidean distance |
+| Multiplier | Starts at ×1; +1 each time a match beats the round's longest grab (the first 4-tile match gives ×2), and it stays for the round |
+| Score | 100 × multiplier per match, no cascades |
 | Round | 60 seconds |
+| Lifting early | Fewer than 3 tiles disappears with no score |
 | After a match | Lift your finger before starting the next connection |
-| Board state | Always has at least one valid match; reshuffles if a refill would leave none |
+| Board state | Always has a match the current string can reach; reshuffles if a refill would leave none |
 
 ## Architecture
 
@@ -73,10 +75,11 @@ App/EmojiMatchUITests/       End-to-end XCUITest on a fixed board
 
 **Decisions worth knowing:**
 
-- *Input can't corrupt the board.* The engine computes the whole match result the moment the third tile connects, and rejects all input during `resolvingMatch`. The animation only depicts the result. Resolution is timed by the frame loop rather than by action completion callbacks.
+- *Input can't corrupt the board.* The engine computes the whole match result the moment a match commits, and rejects all input during `resolvingMatch`. The animation only depicts the result. Resolution is timed by the frame loop rather than by action completion callbacks.
 - *Fast swipes.* Each finger movement is interpolated in 0.1-tile steps, and `GameScene` also feeds iOS's coalesced touches, so crossed tiles register in order. While dragging, a tile registers only within 0.45 tiles of its center, so a diagonal doesn't clip the corners of its neighbors.
 - *No lost touches.* A finger that lands during the intro or a match animation starts its selection, at its current location, as soon as input reopens.
-- *Timer.* The 60 seconds run during match animations, since the round is real time. On expiry, an incomplete selection is cancelled; a match already committed finishes animating, counts, and then the round ends.
+- *Timer.* The 60 seconds run during match animations, since the round is real time. On expiry, a selection of 3 or more tiles commits and fewer is cancelled; a committed match finishes animating, counts, and then the round ends. Backgrounding treats the selection the same way, as if the finger lifted.
+- *Tuning.* String start, growth, and cap are the `startingLength`, `lengthGrowth`, and `lengthCap` defaults in `GameConfig`.
 - *Solvability.* Random boards can genuinely have no match: `unsolvableTypes()` in the tests is a full board without one. After every refill the engine checks, then shuffles the existing tiles, with a deterministic fallback that always succeeds.
 - *Sound* is synthesized at runtime, so there are no audio assets, and uses the ambient session so it mixes with music and obeys the silent switch.
 

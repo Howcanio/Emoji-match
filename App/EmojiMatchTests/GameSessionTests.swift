@@ -7,10 +7,12 @@ import XCTest
 private final class RecordingFeedback: GameFeedback {
     var selections: [Int] = []
     var matches = 0
+    var raises = 0
     var ticks = 0
     var endings: [Bool] = []
     func tileSelected(index: Int) { selections.append(index) }
     func matched() { matches += 1 }
+    func multiplierRaised() { raises += 1 }
     func timerTick() { ticks += 1 }
     func roundEnded(newBest: Bool) { endings.append(newBest) }
 }
@@ -102,14 +104,14 @@ final class GameSessionTests: XCTestCase {
         engine.startRound()
         session = makeSession(engine)
         for iteration in 1...50 {
-            let path = session.engine.board.findMatch(maxLength: 5)!
+            let path = session.engine.availableMatch!
             session.touchDown(at: BoardPoint(center: path[0]))
             // Reach each target by touching it directly; any same-type tile on the way only
             // changes which match is made, and the assertions hold either way.
             session.touchMoved(to: BoardPoint(center: path[1]))
             if session.phase == .selecting { session.touchMoved(to: BoardPoint(center: path[2])) }
             session.touchUp()
-            XCTAssertEqual(session.score, iteration * 100)
+            XCTAssertGreaterThanOrEqual(session.score, 100)
             XCTAssertEqual(session.scene.liveTileCount, 48)
             run(seconds: 0.6)
             XCTAssertEqual(session.phase, .playing)
@@ -120,19 +122,24 @@ final class GameSessionTests: XCTestCase {
         startRound()
         session.touchDown(at: center(0, 2))
         session.touchMoved(to: center(7, 2))
-        XCTAssertEqual(session.score, 100)
+        // A 3-unit string crossing a full column reaches 4 tiles and raises the multiplier to ×2.
+        XCTAssertEqual(session.score, 200)
+        XCTAssertEqual(session.multiplier, 2)
+        XCTAssertEqual(feedback.raises, 1)
         XCTAssertEqual(session.scene.liveTileCount, 48)
     }
 
     func testStringGaugeTracksSelection() {
         startRound()
-        XCTAssertNil(session.stringRemaining)
-        session.touchDown(at: center(0, 0))
         XCTAssertEqual(session.stringRemaining, 1)
+        XCTAssertEqual(session.stringGrowth, 0.25)
+        session.touchDown(at: center(0, 0))
         session.touchMoved(to: center(1, 0))
-        XCTAssertEqual(session.stringRemaining ?? 0, 0.8, accuracy: 0.001)
+        XCTAssertEqual(session.stringRemaining, 2.0 / 3, accuracy: 0.001)
         session.touchUp()
-        XCTAssertNil(session.stringRemaining)
+        XCTAssertEqual(session.stringRemaining, 1)
+        playColumnMatch()
+        XCTAssertEqual(session.stringGrowth, 3.5 / 12, accuracy: 0.001)
     }
 
     func testPauseFreezesRoundAndResumeContinues() {
@@ -164,7 +171,7 @@ final class GameSessionTests: XCTestCase {
         session.touchDown(at: center(0, 0))
         session.pause()
         XCTAssertEqual(session.phase, .playing)
-        XCTAssertNil(session.stringRemaining)
+        XCTAssertEqual(session.stringRemaining, 1)
         session.resume()
         session.touchMoved(to: center(1, 0))
         XCTAssertTrue(session.engine.selection.isEmpty)
@@ -193,7 +200,7 @@ final class GameSessionTests: XCTestCase {
         XCTAssertEqual(feedback.endings, [true])
         session.showResults()
         session.showResults()
-        XCTAssertEqual(summaries, [RoundSummary(score: 100, matches: 1, best: 100, isNewBest: true)])
+        XCTAssertEqual(summaries, [RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 100, isNewBest: true)])
         XCTAssertEqual(HighScoreStore(defaults: defaults).best, 100)
     }
 
@@ -206,7 +213,7 @@ final class GameSessionTests: XCTestCase {
         playColumnMatch()
         run(seconds: 2)
         session.showResults()
-        XCTAssertEqual(summary, RoundSummary(score: 100, matches: 1, best: 500, isNewBest: false))
+        XCTAssertEqual(summary, RoundSummary(score: 100, matches: 1, longestMatch: 3, best: 500, isNewBest: false))
         XCTAssertEqual(feedback.endings, [false])
     }
 

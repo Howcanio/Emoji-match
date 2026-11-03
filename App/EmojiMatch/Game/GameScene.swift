@@ -304,7 +304,11 @@ final class GameScene: SKScene {
             node.run(.sequence([vanish, .removeFromParent()]))
             if !reduced { burstSparks(at: node.position, type: cleared.tile.type) }
         }
-        showScoreBadge(over: resolution.cleared.map { scenePoint($0.position) }, reduced: reduced)
+        let points = resolution.cleared.map { scenePoint($0.position) }
+        showBadge("+\(resolution.points)", over: points, lift: 0, reduced: reduced)
+        if resolution.raisedMultiplier {
+            showBadge("×\(resolution.multiplier)!", over: points, lift: tileSize * 0.6, reduced: reduced)
+        }
 
         for node in tileNodes.values { node.setDimmed(false) }
 
@@ -381,13 +385,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func showScoreBadge(over points: [CGPoint], reduced: Bool) {
+    private func showBadge(_ text: String, over points: [CGPoint], lift: CGFloat, reduced: Bool) {
         guard let textures else { return }
-        let badge = SKSpriteNode(texture: textures.scoreBadge)
+        let badge = SKSpriteNode(texture: textures.badge(text))
         let x = points.map(\.x).reduce(0, +) / CGFloat(points.count)
         let y = points.map(\.y).reduce(0, +) / CGFloat(points.count)
         let halfWidth = badge.size.width / 2
-        badge.position = CGPoint(x: min(max(x, -size.width / 2 + halfWidth), size.width / 2 - halfWidth), y: y)
+        badge.position = CGPoint(x: min(max(x, -size.width / 2 + halfWidth), size.width / 2 - halfWidth), y: y + lift)
         badge.zPosition = TileNode.Z.effects + 1
         boardLayer.addChild(badge)
         if reduced {

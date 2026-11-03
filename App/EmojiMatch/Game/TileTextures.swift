@@ -9,7 +9,7 @@ final class TileTextures {
     private var baseCache: [Int: SKTexture] = [:]
     private var emojiCache: [Int: SKTexture] = [:]
     private var glowCache: [Int: SKTexture] = [:]
-    private(set) lazy var scoreBadge = Self.makeScoreBadge(tileSize: tileSize)
+    private var badgeCache: [String: SKTexture] = [:]
 
     init(tileSize: CGFloat) { self.tileSize = tileSize }
 
@@ -31,6 +31,14 @@ final class TileTextures {
         if let cached = glowCache[type] { return cached }
         let texture = makeGlow(EmojiCatalog.entry(for: type).glow)
         glowCache[type] = texture
+        return texture
+    }
+
+    /// Floating text such as "+300" or "×3!".
+    func badge(_ text: String) -> SKTexture {
+        if let cached = badgeCache[text] { return cached }
+        let texture = Self.makeBadge(text, tileSize: tileSize)
+        badgeCache[text] = texture
         return texture
     }
 
@@ -94,10 +102,10 @@ final class TileTextures {
         return SKTexture(image: image)
     }
 
-    private static func makeScoreBadge(tileSize: CGFloat) -> SKTexture {
+    private static func makeBadge(_ string: String, tileSize: CGFloat) -> SKTexture {
         let descriptor = UIFont.systemFont(ofSize: tileSize * 0.5, weight: .heavy).fontDescriptor.withDesign(.rounded)
         let font = descriptor.map { UIFont(descriptor: $0, size: tileSize * 0.5) } ?? .boldSystemFont(ofSize: tileSize * 0.5)
-        let text = NSAttributedString(string: "+100", attributes: [
+        let text = NSAttributedString(string: string, attributes: [
             .font: font,
             .foregroundColor: UIColor(red: 1, green: 0.36, blue: 0.54, alpha: 1),
             .strokeColor: UIColor.white,

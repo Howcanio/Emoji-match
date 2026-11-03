@@ -20,11 +20,16 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 - [ ] Dragging draws a glowing string from the tile to the finger
 - [ ] Nonmatching emojis dim and are ignored when crossed
 - [ ] Matching emojis out of reach dim and aren't selected
-- [ ] The gauge above the board shrinks as string is used
+- [ ] The gauge above the board drains as string is used, and its track lengthens after each win
 - [ ] The string goes taut at its limit rather than following the finger further
-- [ ] Reaching the third tile pops immediately, without lifting
-- [ ] After a match, continuing to drag does nothing until you lift
+- [ ] Lifting with 3 or more tiles selected pops them all
+- [ ] When no more matching tiles are in reach, the selection pops without lifting, and feels intentional rather than surprising
+- [ ] After that pop, continuing to drag does nothing until you lift
 - [ ] Lifting with one or two tiles selected clears the selection with no score
+- [ ] First match of a round has a short 3-unit reach; later in the round, 5+ tile grabs are possible
+- [ ] A new longest grab shows the ×N badge, adds ×N to the HUD, and plays the level-up sound and haptic
+- [ ] Later matches score 100 × N, and the +points badge shows the right amount
+- [ ] Pacing: string growth (0.5 per win) and multiplier feel rewarding, not too fast or too slow over 60 seconds
 - [ ] All eight directions work, including diagonals
 - [ ] Skipping across other emojis to a distant match works
 - [ ] A very fast flick over matching tiles selects them in order
@@ -34,7 +39,7 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 
 ## Feel and animation
 
-- [ ] Pop is snappy (about 180 ms), with sparks and a floating +100
+- [ ] Pop is snappy (about 180 ms), with sparks and a floating +points badge
 - [ ] Tiles fall smoothly with a small landing squash; new tiles enter from the top
 - [ ] No hitches over 60 seconds of rapid play, on the oldest supported device you have
 - [ ] Battery and heat are reasonable after five consecutive rounds
@@ -52,7 +57,8 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 
 - [ ] Timer starts at 60 after the short board intro, and turns red at 10
 - [ ] Round ends at 0 with "Time's up!", then results
-- [ ] A gesture in progress at 0 is cancelled and doesn't score
+- [ ] A gesture of 1 or 2 tiles in progress at 0 is cancelled and doesn't score
+- [ ] 3 or more tiles held at 0 pop and count
 - [ ] A match landed just before 0 still counts
 - [ ] Home Screen swipe mid-round: timer freezes, and resumes on return
 - [ ] Lock and unlock mid-round: same
@@ -62,7 +68,7 @@ Device: ________ iOS: ________ Build: ________ Tester: ________ Date: ________
 
 ## Results and persistence
 
-- [ ] Results show final score, personal best, matches, Play Again, and Home
+- [ ] Results show final score, personal best, matches, longest grab, Play Again, and Home
 - [ ] A record shows "New best!" and plays the fanfare
 - [ ] Play Again starts a fresh 60 seconds with a new board and score 0
 - [ ] Best score survives force-quit and device restart

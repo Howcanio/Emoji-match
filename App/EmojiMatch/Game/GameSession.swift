@@ -9,8 +9,11 @@ final class GameSession: ObservableObject {
     @Published private(set) var score = 0
     @Published private(set) var secondsLeft: Int
     @Published private(set) var phase: GamePhase = .ready
-    /// Fraction of string still available, or nil when nothing is selected.
-    @Published private(set) var stringRemaining: Double?
+    @Published private(set) var multiplier = 1
+    /// Fraction of the current string still available; 1 when nothing is selected.
+    @Published private(set) var stringRemaining: Double = 1
+    /// Current string length as a fraction of its cap, so growth is visible.
+    @Published private(set) var stringGrowth: Double
 
     private(set) var engine: GameEngine
     let scene: GameScene
@@ -31,6 +34,7 @@ final class GameSession: ObservableObject {
         self.highScores = highScores
         self.feedback = feedback
         self.secondsLeft = Int(engine.remaining.rounded(.up))
+        self.stringGrowth = engine.stringLength / engine.config.lengthCap
         self.scene = GameScene(size: CGSize(width: 1, height: 1))
         scene.session = self
     }
@@ -95,9 +99,10 @@ final class GameSession: ObservableObject {
             switch event {
             case .tileSelected(_, _, let index):
                 feedback.tileSelected(index: index)
-            case .matched:
+            case .matched(let resolution):
                 resolveRemaining = duration ?? 0
                 feedback.matched()
+                if resolution.raisedMultiplier { feedback.multiplierRaised() }
             case .roundEnded(let score, let matches):
                 finishRound(score: score, matches: matches)
             case .roundStarted, .selectionCancelled, .resolvingFinished:
@@ -107,13 +112,21 @@ final class GameSession: ObservableObject {
         guard !events.isEmpty else { return }
         score = engine.score
         phase = engine.phase
-        stringRemaining = engine.phase == .selecting ? engine.remainingLength / engine.config.maxLength : nil
+        multiplier = engine.multiplier
+        stringGrowth = engine.stringLength / engine.config.lengthCap
+        stringRemaining = engine.phase == .selecting ? engine.remainingLength / engine.stringLength : 1
         updateCountdown()
     }
 
     private func finishRound(score: Int, matches: Int) {
         let isNewBest = highScores.record(score)
-        pendingSummary = RoundSummary(score: score, matches: matches, best: highScores.best, isNewBest: isNewBest)
+        pendingSummary = RoundSummary(
+            score: score,
+            matches: matches,
+            longestMatch: engine.longestMatch,
+            best: highScores.best,
+            isNewBest: isNewBest
+        )
         feedback.roundEnded(newBest: isNewBest)
     }
 

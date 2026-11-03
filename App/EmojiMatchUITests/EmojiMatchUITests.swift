@@ -76,8 +76,19 @@ final class EmojiMatchUITests: XCTestCase {
     func testDragAcrossThreeMatchingTilesScores() {
         let board = startGame()
         XCTAssertEqual(value("score"), 0)
-        tile(4, 0, on: board).press(forDuration: 0.1, thenDragTo: tile(7, 0, on: board))
+        tile(5, 0, on: board).press(forDuration: 0.1, thenDragTo: tile(7, 0, on: board))
         waitForScore(100)
+        XCTAssertFalse(element("multiplier").exists)
+    }
+
+    func testLongerGrabRaisesMultiplierAndAppliesToLaterMatches() {
+        let board = startGame()
+        tile(4, 0, on: board).press(forDuration: 0.1, thenDragTo: tile(7, 0, on: board))
+        waitForScore(200) // 4 tiles: new longest, ×2.
+        XCTAssertEqual(value("multiplier"), 2)
+        Thread.sleep(forTimeInterval: 0.7)
+        tile(5, 1, on: board).press(forDuration: 0.1, thenDragTo: tile(7, 1, on: board))
+        waitForScore(400) // 3 tiles at the kept ×2.
     }
 
     func testFastSwipeStillRegistersCrossedTiles() {
@@ -88,7 +99,7 @@ final class EmojiMatchUITests: XCTestCase {
             withVelocity: .fast,
             thenHoldForDuration: 0
         )
-        waitForScore(100)
+        waitForScore(200) // Crossing 4 tiles on the 3-unit string raises the multiplier to ×2.
     }
 
     func testRepeatedMatches() {

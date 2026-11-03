@@ -30,16 +30,23 @@ public struct GameConfig: Sendable, Equatable {
     public let rows: Int
     public let columns: Int
     public let types: Int
-    public let maxLength: Double
+    /// String length at the start of a round, in tile units.
+    public let startingLength: Double
+    /// Added to the string after every match, up to `lengthCap`.
+    public let lengthGrowth: Double
+    public let lengthCap: Double
     public let duration: TimeInterval
     public let pointsPerMatch: Int
+    /// The fewest tiles that make a match. There's no maximum beyond what the string can reach.
     public let matchSize = 3
 
     public init(
         rows: Int = 8,
         columns: Int = 6,
         types: Int = 8,
-        maxLength: Double = 5,
+        startingLength: Double = 3,
+        lengthGrowth: Double = 0.5,
+        lengthCap: Double = 12,
         duration: TimeInterval = 60,
         pointsPerMatch: Int = 100
     ) {
@@ -47,11 +54,14 @@ public struct GameConfig: Sendable, Equatable {
         // 2-unit string can always join 3 adjacent tiles, so every valid config is solvable.
         precondition(rows > 0 && columns > 0 && types > 0, "Board and type counts must be positive")
         precondition(rows * columns > 2 * types, "Board too small to guarantee three tiles of one type")
-        precondition(maxLength >= 2, "String too short to guarantee a match")
+        precondition(startingLength >= 2, "String too short to guarantee a match")
+        precondition(lengthCap >= startingLength && lengthGrowth >= 0, "String must not shrink")
         self.rows = rows
         self.columns = columns
         self.types = types
-        self.maxLength = maxLength
+        self.startingLength = startingLength
+        self.lengthGrowth = lengthGrowth
+        self.lengthCap = lengthCap
         self.duration = duration
         self.pointsPerMatch = pointsPerMatch
     }
@@ -102,6 +112,10 @@ public struct MatchResolution: Equatable, Sendable {
     public let spawns: [TileSpawn]
     public let reshuffle: [TileMove]
     public let points: Int
+    /// The multiplier that applied to this match, including any increase it just earned.
+    public let multiplier: Int
+    /// True when this match was the round's new longest grab and raised the multiplier.
+    public let raisedMultiplier: Bool
 }
 
 public enum SelectionRejection: Equatable, Sendable {

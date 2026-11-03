@@ -7,6 +7,7 @@ import UIKit
 protocol GameFeedback: AnyObject {
     func tileSelected(index: Int)
     func matched()
+    func multiplierRaised()
     func timerTick()
     func roundEnded(newBest: Bool)
 }
@@ -45,6 +46,11 @@ final class SystemFeedback: GameFeedback {
         if soundOn { synth.play(.pop) }
     }
 
+    func multiplierRaised() {
+        if hapticsOn { endHaptic.notificationOccurred(.success) }
+        if soundOn { synth.play(.levelUp) }
+    }
+
     func timerTick() {
         if soundOn { synth.play(.tick) }
     }
@@ -60,7 +66,7 @@ final class SystemFeedback: GameFeedback {
 @MainActor
 final class SoundSynth {
     enum Sound: CaseIterable {
-        case selectFirst, selectSecond, pop, tick, timeUp, fanfare
+        case selectFirst, selectSecond, pop, levelUp, tick, timeUp, fanfare
     }
 
     private static let sampleRate = 44_100.0
@@ -123,6 +129,11 @@ final class SoundSynth {
                 Note(0, 900, to: 240, duration: 0.09, gain: 0.5),
                 Note(0.05, 1319, duration: 0.14, gain: 0.25),
                 Note(0.09, 1760, duration: 0.18, gain: 0.2),
+            ]
+        case .levelUp:
+            return [
+                Note(0.08, 784, duration: 0.1, gain: 0.25), Note(0.16, 988, duration: 0.1, gain: 0.25),
+                Note(0.24, 1319, duration: 0.22, gain: 0.28),
             ]
         case .tick:
             return [Note(0, 1200, duration: 0.04, gain: 0.2)]

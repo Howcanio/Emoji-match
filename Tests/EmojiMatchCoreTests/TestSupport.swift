@@ -14,15 +14,26 @@ func unsolvableTypes(rows: Int = 8, columns: Int = 6) -> [[Int]] {
     }
 }
 
+/// A constant 5-unit string, for tests about geometry rather than growth.
+let fixedString = GameConfig(startingLength: 5, lengthGrowth: 0, lengthCap: 5)
+
 func runningEngine(
     types: [[Int]]? = nil,
     refills: [Int] = [],
-    config: GameConfig = GameConfig(),
+    config: GameConfig = fixedString,
     seed: UInt64 = 1
 ) -> GameEngine {
     var engine = GameEngine(config: config, seed: seed, initialTypes: types, scriptedRefills: refills)
     engine.startRound()
     return engine
+}
+
+extension GameEngine {
+    /// Adds the last tile of a selection and commits, as lifting the finger would.
+    mutating func finishMatch(adding position: Position) -> MatchResolution? {
+        if case .matched(let resolution) = extendSelection(to: position) { return resolution }
+        return commitSelection()
+    }
 }
 
 extension Array where Element == GameEvent {

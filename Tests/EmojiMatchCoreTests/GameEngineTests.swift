@@ -37,7 +37,7 @@ final class BoardGenerationTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes(), refills: [-1, 8, 17])
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         XCTAssertEqual(engine.board.types.map { $0[0] }.prefix(3), [7, 0, 1])
     }
 }
@@ -56,17 +56,17 @@ final class SolvabilityTests: XCTestCase {
     func testInitialBoardsAreAlwaysSolvable() {
         for seed in 0..<500 {
             let engine = GameEngine(seed: UInt64(seed))
-            XCTAssertNotNil(engine.board.findMatch(maxLength: 5), "seed \(seed)")
+            XCTAssertNotNil(engine.availableMatch, "seed \(seed)")
         }
     }
 
     func testFoundMatchIsActuallyPlayable() {
         for seed in 0..<200 {
             var engine = runningEngine(seed: UInt64(seed))
-            let path = try! XCTUnwrap(engine.board.findMatch(maxLength: 5))
+            let path = try! XCTUnwrap(engine.availableMatch)
             XCTAssertEqual(engine.beginSelection(at: path[0]), .selected)
             XCTAssertEqual(engine.extendSelection(to: path[1]), .selected)
-            guard case .matched = engine.extendSelection(to: path[2]) else {
+            guard engine.finishMatch(adding: path[2]) != nil else {
                 return XCTFail("seed \(seed)")
             }
         }
@@ -84,17 +84,17 @@ final class SolvabilityTests: XCTestCase {
     func testUnsolvableStartingBoardIsReshuffledKeepingTiles() {
         let types = unsolvableTypes()
         let engine = GameEngine(seed: 11, initialTypes: types)
-        XCTAssertNotNil(engine.board.findMatch(maxLength: 5))
+        XCTAssertNotNil(engine.availableMatch)
         XCTAssertEqual(engine.board.types.joined().sorted(), types.joined().sorted())
     }
 
     func testBoardStaysSolvableThroughManyMatches() {
         var engine = runningEngine(seed: 2024)
         for index in 0..<2000 {
-            let path = try! XCTUnwrap(engine.board.findMatch(maxLength: 5), "match \(index)")
+            let path = try! XCTUnwrap(engine.availableMatch, "match \(index)")
             _ = engine.beginSelection(at: path[0])
             _ = engine.extendSelection(to: path[1])
-            _ = engine.extendSelection(to: path[2])
+            _ = engine.finishMatch(adding: path[2])
             engine.touchUp()
             engine.finishResolving()
         }
@@ -118,11 +118,11 @@ final class ReshuffleTests: XCTestCase {
         var engine = makeEngineThatNeedsReshuffle()
         _ = engine.beginSelection(at: Position(5, 5))
         _ = engine.extendSelection(to: Position(6, 5))
-        guard case .matched(let resolution) = engine.extendSelection(to: Position(7, 5)) else {
+        guard let resolution = engine.finishMatch(adding: Position(7, 5)) else {
             return XCTFail("expected match")
         }
         XCTAssertFalse(resolution.reshuffle.isEmpty)
-        XCTAssertNotNil(engine.board.findMatch(maxLength: 5))
+        XCTAssertNotNil(engine.availableMatch)
         XCTAssertEqual(engine.board.types.joined().sorted(), unsolvableTypes().joined().sorted())
         for move in resolution.reshuffle {
             XCTAssertEqual(engine.board[move.to], move.tile)
@@ -134,7 +134,7 @@ final class ReshuffleTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(0, 0))
         _ = engine.extendSelection(to: Position(1, 0))
-        guard case .matched(let resolution) = engine.extendSelection(to: Position(2, 0)) else {
+        guard let resolution = engine.finishMatch(adding: Position(2, 0)) else {
             return XCTFail("expected match")
         }
         XCTAssertTrue(resolution.reshuffle.isEmpty)
@@ -204,7 +204,7 @@ final class SelectionTests: XCTestCase {
         var engine = runningEngine(types: types)
         _ = engine.beginSelection(at: Position(0, 0))
         XCTAssertEqual(engine.extendSelection(to: Position(2, 2)), .selected) // skips (1,1); diagonal
-        guard case .matched = engine.extendSelection(to: Position(3, 1)) else {
+        guard engine.finishMatch(adding: Position(3, 1)) != nil else {
             return XCTFail("diagonal back-left should match")
         }
     }
@@ -231,7 +231,7 @@ final class StringLengthTests: XCTestCase {
         _ = engine.beginSelection(at: Position(0, 0))
         XCTAssertEqual(engine.extendSelection(to: Position(0, 2)), .selected)
         XCTAssertEqual(engine.remainingLength, 3, accuracy: 1e-9)
-        guard case .matched = engine.extendSelection(to: Position(0, 5)) else {
+        guard engine.finishMatch(adding: Position(0, 5)) != nil else {
             return XCTFail("exactly 5 units must be allowed")
         }
     }
@@ -264,7 +264,7 @@ final class StringLengthTests: XCTestCase {
         _ = engine.beginSelection(at: Position(0, 0))
         _ = engine.extendSelection(to: Position(3, 0))
         XCTAssertEqual(engine.extendSelection(to: Position(7, 5)), .rejected(.stringTooLong))
-        guard case .matched = engine.extendSelection(to: Position(4, 0)) else {
+        guard engine.finishMatch(adding: Position(4, 0)) != nil else {
             return XCTFail("nearer tile should match")
         }
     }
@@ -275,7 +275,7 @@ final class ClearingAndRefillTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        guard case .matched(let resolution) = engine.extendSelection(to: Position(7, 0)) else {
+        guard let resolution = engine.finishMatch(adding: Position(7, 0)) else {
             return XCTFail("expected match")
         }
         XCTAssertEqual(resolution.cleared.map(\.position), [Position(5, 0), Position(6, 0), Position(7, 0)])
@@ -293,7 +293,7 @@ final class ClearingAndRefillTests: XCTestCase {
         let idsAbove = (0..<5).map { engine.board[Position($0, 0)].id }
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        guard case .matched(let resolution) = engine.extendSelection(to: Position(7, 0)) else {
+        guard let resolution = engine.finishMatch(adding: Position(7, 0)) else {
             return XCTFail("expected match")
         }
         XCTAssertEqual((3..<8).map { engine.board[Position($0, 0)].id }, idsAbove, "survivors keep order")
@@ -311,7 +311,7 @@ final class ClearingAndRefillTests: XCTestCase {
         let before = engine.board
         _ = engine.beginSelection(at: Position(2, 0))
         _ = engine.extendSelection(to: Position(1, 1))
-        guard case .matched(let resolution) = engine.extendSelection(to: Position(3, 2)) else {
+        guard let resolution = engine.finishMatch(adding: Position(3, 2)) else {
             return XCTFail("expected match")
         }
         for column in 3..<6 {
@@ -335,7 +335,7 @@ final class ClearingAndRefillTests: XCTestCase {
         let row2 = engine.board[Position(2, 0)]
         _ = engine.beginSelection(at: Position(3, 0))
         _ = engine.extendSelection(to: Position(5, 0))
-        guard case .matched = engine.extendSelection(to: Position(6, 0)) else {
+        guard engine.finishMatch(adding: Position(6, 0)) != nil else {
             return XCTFail("expected match")
         }
         XCTAssertEqual(engine.board[Position(6, 0)], interruptor)
@@ -345,10 +345,10 @@ final class ClearingAndRefillTests: XCTestCase {
     func testBoardStaysFullWithUniqueIDsAfterEveryMatch() {
         var engine = runningEngine(seed: 77)
         for _ in 0..<200 {
-            let path = engine.board.findMatch(maxLength: 5)!
+            let path = engine.availableMatch!
             _ = engine.beginSelection(at: path[0])
             _ = engine.extendSelection(to: path[1])
-            _ = engine.extendSelection(to: path[2])
+            _ = engine.finishMatch(adding: path[2])
             engine.touchUp()
             engine.finishResolving()
             XCTAssertEqual(engine.phase, .playing)
@@ -359,10 +359,10 @@ final class ClearingAndRefillTests: XCTestCase {
     func testResolutionDescribesEveryTileThatChangedPosition() {
         var engine = runningEngine(seed: 123)
         let before = engine.board
-        let path = engine.board.findMatch(maxLength: 5)!
+        let path = engine.availableMatch!
         _ = engine.beginSelection(at: path[0])
         _ = engine.extendSelection(to: path[1])
-        guard case .matched(let resolution) = engine.extendSelection(to: path[2]) else {
+        guard let resolution = engine.finishMatch(adding: path[2]) else {
             return XCTFail("expected match")
         }
         // Replay the resolution on the old board's IDs: it must reproduce the new board.
@@ -382,10 +382,10 @@ final class ScoringAndStateTests: XCTestCase {
     func testEachMatchScoresExactly100NoMultiplier() {
         var engine = runningEngine(seed: 4)
         for expected in stride(from: 100, through: 1000, by: 100) {
-            let path = engine.board.findMatch(maxLength: 5)!
+            let path = engine.availableMatch!
             _ = engine.beginSelection(at: path[0])
             _ = engine.extendSelection(to: path[1])
-            _ = engine.extendSelection(to: path[2])
+            _ = engine.finishMatch(adding: path[2])
             engine.touchUp()
             engine.finishResolving()
             XCTAssertEqual(engine.score, expected)
@@ -398,7 +398,7 @@ final class ScoringAndStateTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         engine.finishResolving()
         XCTAssertEqual(engine.score, 100)
         XCTAssertEqual(engine.phase, .playing)
@@ -408,7 +408,7 @@ final class ScoringAndStateTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         let snapshot = engine.board
         XCTAssertEqual(engine.beginSelection(at: Position(0, 1)), .rejected(.notAccepting))
         XCTAssertEqual(engine.extendSelection(to: Position(1, 1)), .rejected(.noActiveSelection))
@@ -480,7 +480,7 @@ final class TimerTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         XCTAssertTrue(engine.tick(60).isEmpty)
         XCTAssertEqual(engine.phase, .resolvingMatch, "committed match still animating")
         XCTAssertEqual(engine.remaining, 0)
@@ -493,7 +493,7 @@ final class TimerTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         engine.tick(1)
         XCTAssertEqual(engine.remaining, 59)
     }
@@ -557,7 +557,7 @@ final class PauseResumeTests: XCTestCase {
         var engine = runningEngine(types: stripedTypes())
         _ = engine.beginSelection(at: Position(5, 0))
         _ = engine.extendSelection(to: Position(6, 0))
-        _ = engine.extendSelection(to: Position(7, 0))
+        _ = engine.finishMatch(adding: Position(7, 0))
         engine.pause()
         XCTAssertEqual(engine.phase, .resolvingMatch)
         XCTAssertEqual(engine.score, 100)
@@ -585,23 +585,22 @@ final class TouchInputTests: XCTestCase {
         XCTAssertEqual(events.selectedPositions, [Position(0, 0)])
     }
 
-    func testSlowDragCompletesMatch() {
+    func testSlowDragThenReleaseCompletesMatch() {
         var engine = runningEngine(types: stripedTypes())
         engine.touchDown(at: center(0, 0))
-        var points: [BoardPoint] = []
-        for step in 1...40 { points.append(BoardPoint(x: 0.5, y: 0.5 + Double(step) * 0.05)) }
+        let points = (1...40).map { BoardPoint(x: 0.5, y: 0.5 + Double($0) * 0.05) }
         let events = points.flatMap { engine.touchMoved(to: $0) }
-        XCTAssertEqual(events.selectedPositions, [Position(1, 0)])
-        XCTAssertEqual(events.resolution?.cleared.map(\.position), [Position(0, 0), Position(1, 0), Position(2, 0)])
+        XCTAssertEqual(events.selectedPositions, [Position(1, 0), Position(2, 0)])
+        XCTAssertEqual(engine.phase, .selecting, "waits for the finger while more is in reach")
+        XCTAssertEqual(engine.touchUp().resolution?.cleared.map(\.position), [Position(0, 0), Position(1, 0), Position(2, 0)])
     }
 
     func testRapidSwipeInOneEventRegistersEveryCrossedTileInOrder() {
         var engine = runningEngine(types: stripedTypes())
         engine.touchDown(at: center(0, 0))
-        // One event spanning 4 tiles straight down: crosses (1,0) and (2,0), which complete the match.
         let events = engine.touchMoved(to: center(4, 0))
-        XCTAssertEqual(events.resolution?.cleared.map(\.position), [Position(0, 0), Position(1, 0), Position(2, 0)])
-        XCTAssertEqual(engine.phase, .resolvingMatch)
+        XCTAssertEqual(events.selectedPositions, (1...4).map { Position($0, 0) })
+        XCTAssertEqual(engine.touchUp().resolution?.cleared.count, 5)
     }
 
     func testRapidDiagonalSwipeIsInterpolated() {
@@ -609,8 +608,8 @@ final class TouchInputTests: XCTestCase {
         types[1][1] = 0; types[2][2] = 0
         var engine = runningEngine(types: types)
         engine.touchDown(at: center(0, 0))
-        let events = engine.touchMoved(to: center(3, 3))
-        XCTAssertEqual(events.resolution?.cleared.map(\.position), [Position(0, 0), Position(1, 1), Position(2, 2)])
+        _ = engine.touchMoved(to: center(3, 3))
+        XCTAssertEqual(engine.touchUp().resolution?.cleared.map(\.position), [Position(0, 0), Position(1, 1), Position(2, 2)])
     }
 
     func testRapidSwipeSkipsNonMatchingTilesWithoutEndingGesture() {
@@ -660,15 +659,14 @@ final class TouchInputTests: XCTestCase {
         XCTAssertEqual(engine.score, 0)
     }
 
-    func testMatchEndsGestureAndRequiresRelease() {
-        var engine = runningEngine(types: stripedTypes())
+    func testAutoCommitEndsGestureAndRequiresRelease() {
+        var engine = runningEngine(types: stripedTypes(), config: GameConfig(startingLength: 2, lengthGrowth: 0, lengthCap: 2))
         engine.touchDown(at: center(5, 0))
         _ = engine.touchMoved(to: center(7, 0))
-        XCTAssertEqual(engine.score, 100)
+        XCTAssertEqual(engine.score, 100, "nothing further in reach, so it commits without a lift")
         XCTAssertTrue(engine.awaitingRelease)
         engine.finishResolving()
         XCTAssertEqual(engine.phase, .playing)
-        // Finger still down and moving over matching tiles: nothing happens.
         XCTAssertTrue(engine.touchMoved(to: center(7, 1)).isEmpty)
         XCTAssertTrue(engine.touchMoved(to: center(4, 1)).isEmpty)
         XCTAssertTrue(engine.selection.isEmpty)
@@ -681,14 +679,12 @@ final class TouchInputTests: XCTestCase {
     func testRepeatedMatchesViaFullGesturesAcrossManyRounds() {
         var engine = runningEngine(seed: 31)
         for iteration in 1...100 {
-            let path = engine.board.findMatch(maxLength: 5)!
+            let path = engine.availableMatch!
             engine.touchDown(at: BoardPoint(center: path[0]))
-            // Jump tile to tile via direct selection events, so non-target same-type tiles in the
-            // straight line can't intervene.
             _ = engine.extendSelection(to: path[1])
             _ = engine.extendSelection(to: path[2])
-            XCTAssertEqual(engine.score, iteration * 100)
             engine.touchUp()
+            XCTAssertEqual(engine.score, iteration * 100)
             engine.finishResolving()
             XCTAssertEqual(engine.phase, .playing)
         }
@@ -699,6 +695,7 @@ final class TouchInputTests: XCTestCase {
         engine.touchDown(at: center(5, 0))
         _ = engine.touchMoved(to: center(7, 0))
         engine.touchUp()
+        XCTAssertEqual(engine.phase, .resolvingMatch)
         XCTAssertTrue(engine.touchDown(at: center(0, 1)).isEmpty, "locked out while resolving")
         _ = engine.touchMoved(to: center(0, 2))
         let events = engine.finishResolving()
@@ -763,7 +760,7 @@ final class TouchInputTests: XCTestCase {
     }
 
     func testLostTouchEndCannotWedgeAwaitingRelease() {
-        var engine = runningEngine(types: stripedTypes())
+        var engine = runningEngine(types: stripedTypes(), config: GameConfig(startingLength: 2, lengthGrowth: 0, lengthCap: 2))
         engine.touchDown(at: center(5, 0))
         _ = engine.touchMoved(to: center(7, 0))
         engine.finishResolving()
@@ -772,7 +769,8 @@ final class TouchInputTests: XCTestCase {
 
     func testFuzzedTouchStreamKeepsInvariants() {
         var generator = SeededGenerator(seed: 2026)
-        var engine = runningEngine(seed: 99)
+        var engine = GameEngine(seed: 99)
+        engine.startRound()
         for _ in 0..<50_000 {
             let point = BoardPoint(x: .random(in: -2...8, using: &generator), y: .random(in: -2...10, using: &generator))
             switch Int.random(in: 0..<10, using: &generator) {
@@ -781,16 +779,161 @@ final class TouchInputTests: XCTestCase {
             case 2: engine.finishResolving()
             default: engine.touchMoved(to: point)
             }
-            XCTAssertLessThan(engine.selection.count, 3)
-            XCTAssertEqual(engine.score, engine.matchCount * 100)
+            XCTAssertEqual(engine.score % 100, 0)
+            XCTAssertGreaterThanOrEqual(engine.score, engine.matchCount * 100)
             XCTAssertEqual(engine.phase == .selecting, !engine.selection.isEmpty)
+            XCTAssertLessThanOrEqual(engine.stringLength, 12)
+            XCTAssertNotNil(engine.availableMatch)
             if engine.phase == .selecting {
-                XCTAssertLessThanOrEqual(engine.selectionLength, 5 + 1e-9)
+                XCTAssertLessThanOrEqual(engine.selectionLength, engine.stringLength + 1e-9)
                 XCTAssertEqual(Set(engine.selection).count, engine.selection.count)
                 XCTAssertEqual(Set(engine.selection.map { engine.board[$0].type }).count, 1)
             }
         }
         XCTAssertGreaterThan(engine.matchCount, 0)
+    }
+}
+
+final class GrowingStringTests: XCTestCase {
+    private func center(_ row: Int, _ column: Int) -> BoardPoint { BoardPoint(center: Position(row, column)) }
+
+    func testStringStartsAtThreeAndGrowsWithEachMatch() {
+        var engine = GameEngine(seed: 1, initialTypes: stripedTypes())
+        engine.startRound()
+        XCTAssertEqual(engine.stringLength, 3)
+        for expected in [3.5, 4, 4.5] {
+            let path = engine.availableMatch!
+            _ = engine.beginSelection(at: path[0])
+            _ = engine.extendSelection(to: path[1])
+            _ = engine.finishMatch(adding: path[2])
+            engine.touchUp()
+            engine.finishResolving()
+            XCTAssertEqual(engine.stringLength, expected)
+        }
+    }
+
+    func testStringGrowthStopsAtCap() {
+        var engine = GameEngine(config: GameConfig(lengthCap: 4), seed: 2)
+        engine.startRound()
+        for _ in 0..<6 {
+            let path = engine.availableMatch!
+            _ = engine.beginSelection(at: path[0])
+            _ = engine.extendSelection(to: path[1])
+            _ = engine.finishMatch(adding: path[2])
+            engine.touchUp()
+            engine.finishResolving()
+        }
+        XCTAssertEqual(engine.stringLength, 4)
+    }
+
+    func testStartingStringEnforcesItsLength() {
+        var engine = GameEngine(seed: 1, initialTypes: stripedTypes())
+        engine.startRound()
+        _ = engine.beginSelection(at: Position(0, 0))
+        XCTAssertEqual(engine.extendSelection(to: Position(4, 0)), .rejected(.stringTooLong))
+        XCTAssertEqual(engine.extendSelection(to: Position(3, 0)), .selected)
+        XCTAssertEqual(engine.remainingLength, 0)
+    }
+
+    func testBoardsAreSolvableForTheStartingString() {
+        for seed in 0..<500 {
+            let engine = GameEngine(seed: UInt64(seed))
+            let path = engine.availableMatch
+            XCTAssertNotNil(path, "seed \(seed)")
+            XCTAssertLessThanOrEqual(path![0].distance(to: path![1]) + path![1].distance(to: path![2]), 3 + 1e-9)
+        }
+    }
+
+    func testGrabbingMoreThanThreeTiles() {
+        var engine = runningEngine(types: stripedTypes())
+        engine.touchDown(at: center(0, 0))
+        _ = engine.touchMoved(to: center(4, 0))
+        XCTAssertEqual(engine.selection.count, 5)
+        XCTAssertEqual(engine.phase, .selecting)
+        XCTAssertEqual(engine.touchUp().resolution?.cleared.count, 5)
+    }
+
+    func testUsingTheWholeStringCommitsWithoutWaitingForLift() {
+        var engine = GameEngine(seed: 1, initialTypes: stripedTypes())
+        engine.startRound()
+        engine.touchDown(at: center(0, 0))
+        let events = engine.touchMoved(to: center(7, 0))
+        XCTAssertEqual(events.resolution?.cleared.count, 4)
+        XCTAssertEqual(engine.phase, .resolvingMatch)
+        XCTAssertTrue(engine.awaitingRelease)
+    }
+
+    func testReleaseWithTwoTilesCancelsAndWithThreeCommits() {
+        var engine = runningEngine(types: stripedTypes())
+        engine.touchDown(at: center(0, 0))
+        _ = engine.touchMoved(to: center(1, 0))
+        XCTAssertEqual(engine.touchUp(), [.selectionCancelled([Position(0, 0), Position(1, 0)])])
+        engine.touchDown(at: center(0, 0))
+        _ = engine.touchMoved(to: center(2, 0))
+        XCTAssertEqual(engine.touchUp().resolution?.cleared.count, 3)
+        XCTAssertEqual(engine.score, 100)
+        XCTAssertFalse(engine.awaitingRelease)
+    }
+
+    func testGravityAndRefillForALongGrab() {
+        var engine = runningEngine(types: stripedTypes())
+        engine.touchDown(at: center(2, 0))
+        let resolution = try! XCTUnwrap(engine.touchMoved(to: center(7, 0)).resolution, "whole string used")
+        XCTAssertEqual(resolution.cleared.count, 6)
+        XCTAssertEqual(resolution.spawns.map(\.entryRow), [-6, -5, -4, -3, -2, -1])
+        XCTAssertEqual(resolution.moves.count, 2)
+        XCTAssertEqual(Set(engine.board.positions.map { engine.board[$0].id }).count, 48)
+    }
+
+    func testMultiplierRisesOnlyForNewLongestAndKeepsApplying() {
+        var engine = runningEngine(types: stripedTypes())
+        func grab(_ column: Int, from row: Int, _ engine: inout GameEngine) -> MatchResolution {
+            engine.touchDown(at: center(row, column))
+            let moved = engine.touchMoved(to: center(7, column))
+            let resolution = (moved + engine.touchUp()).resolution!
+            engine.finishResolving()
+            return resolution
+        }
+        let three = grab(0, from: 5, &engine)
+        XCTAssertEqual([three.points, three.multiplier], [100, 1])
+        XCTAssertFalse(three.raisedMultiplier)
+
+        let four = grab(1, from: 4, &engine)
+        XCTAssertEqual([four.points, four.multiplier], [200, 2])
+        XCTAssertTrue(four.raisedMultiplier)
+
+        let threeAgain = grab(2, from: 5, &engine)
+        XCTAssertEqual([threeAgain.points, threeAgain.multiplier], [200, 2])
+        XCTAssertFalse(threeAgain.raisedMultiplier)
+
+        let fourAgain = grab(3, from: 4, &engine)
+        XCTAssertEqual(fourAgain.points, 200, "matching the record doesn't raise it")
+        XCTAssertFalse(fourAgain.raisedMultiplier)
+
+        let six = grab(4, from: 2, &engine)
+        XCTAssertEqual([six.points, six.multiplier], [300, 3], "one step per new record, even when skipping a size")
+        XCTAssertTrue(six.raisedMultiplier)
+
+        XCTAssertEqual(engine.longestMatch, 6)
+        XCTAssertEqual(engine.score, 100 + 200 + 200 + 200 + 300)
+    }
+
+    func testExpiryCommitsASelectionOfThreeOrMore() {
+        var engine = runningEngine(types: stripedTypes())
+        engine.touchDown(at: center(0, 0))
+        _ = engine.touchMoved(to: center(2, 0))
+        XCTAssertNotNil(engine.tick(60).resolution)
+        XCTAssertEqual(engine.phase, .resolvingMatch)
+        XCTAssertEqual(engine.finishResolving(), [.resolvingFinished, .roundEnded(score: 100, matches: 1)])
+    }
+
+    func testPauseCommitsASelectionOfThreeOrMore() {
+        var engine = runningEngine(types: stripedTypes())
+        engine.touchDown(at: center(0, 0))
+        _ = engine.touchMoved(to: center(2, 0))
+        XCTAssertNotNil(engine.pause().resolution)
+        XCTAssertEqual(engine.score, 100)
+        XCTAssertEqual(engine.phase, .resolvingMatch)
     }
 }
 

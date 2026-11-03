@@ -31,8 +31,9 @@ struct ResultsView: View {
             HStack(spacing: 12) {
                 stat("Personal best", summary.best, id: "personalBest")
                 stat("Matches", summary.matches, id: "matchCount")
+                stat("Longest", summary.longestMatch, id: "longestMatch")
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 20)
             .padding(.top, 20)
 
             Spacer()
@@ -62,6 +63,8 @@ struct ResultsView: View {
             Text(title)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(Theme.inkSoft)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)

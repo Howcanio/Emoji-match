@@ -4,13 +4,17 @@ import Foundation
 ///
 /// State machine (`phase`):
 ///
-///     ready ──startRound──▶ playing ◀──cancel/release── selecting
-///                             ▲  │ begin                    │ third tile
-///                             │  └──────────▶ selecting     ▼
-///                             └──finishResolving── resolvingMatch
+///     ready ──startRound──▶ playing ◀──release under 3 tiles── selecting
+///                             ▲  │ begin                           │ release with 3+ tiles,
+///                             │  └──────────▶ selecting            ▼ or nothing left in reach
+///                             └──────finishResolving────── resolvingMatch
 ///     any active phase ── timer expiry ──▶ gameOver
 ///
-/// Expiry during `resolvingMatch` lets the committed match finish; the round ends on
+/// The string starts short and grows with every match. A selection of 3 or more tiles commits when
+/// the finger lifts, or at once when no further tile is in reach. Completing a longer grab than any
+/// before it in the round raises the multiplier, which then applies to every later match.
+///
+/// Expiry commits a selection of 3 or more; the committed match finishes and the round ends on
 /// `finishResolving()`. `isPaused` is orthogonal: it freezes the clock and input in any phase.
 /// The clock keeps running during `resolvingMatch` because the round is 60 real seconds.
 public struct GameEngine {
@@ -28,6 +32,11 @@ public struct GameEngine {
     public private(set) var isPaused = false
     public private(set) var score = 0
     public private(set) var matchCount = 0
+    public private(set) var multiplier = 1
+    /// Most tiles cleared by one match this round.
+    public private(set) var longestMatch = 0
+    /// Current string length in tile units.
+    public private(set) var stringLength: Double
     public private(set) var remaining: TimeInterval
     public private(set) var selection: [Position] = []
     /// True from a completed match until that finger lifts.
@@ -52,6 +61,7 @@ public struct GameEngine {
     ) {
         self.config = config
         self.remaining = config.duration
+        self.stringLength = config.startingLength
         self.generator = SeededGenerator(seed: seed)
         self.scriptedTypes = scriptedRefills[...]
         self.board = Board(rows: 0, columns: 0, cells: [])
@@ -79,6 +89,11 @@ public struct GameEngine {
         guard !isPaused, seconds.isFinite, phase != .ready, phase != .gameOver, remaining > 0 else { return [] }
         remaining = max(0, remaining - max(0, seconds))
         guard remaining == 0, phase != .resolvingMatch else { return [] }
+        if let resolution = commitSelection() {
+            fingerDown = false
+            awaitingRelease = false
+            return [.matched(resolution)]
+        }
         return endRound()
     }
 
@@ -110,7 +125,10 @@ public struct GameEngine {
         zip(selection, selection.dropFirst()).reduce(0) { $0 + $1.0.distance(to: $1.1) }
     }
 
-    public var remainingLength: Double { max(0, config.maxLength - selectionLength) }
+    public var remainingLength: Double { max(0, stringLength - selectionLength) }
+
+    /// A connection the current string can make, if any.
+    public var availableMatch: [Position]? { board.findMatch(maxLength: stringLength) }
 
     /// Whether `position` would be accepted as the next tile of the current selection.
     public func canExtend(to position: Position) -> Bool {
@@ -128,8 +146,16 @@ public struct GameEngine {
     public mutating func extendSelection(to position: Position) -> SelectionResult {
         if let rejection = rejectionForExtending(to: position) { return .rejected(rejection) }
         selection.append(position)
-        guard selection.count == config.matchSize else { return .selected }
+        // With nothing further in reach, there's no reason to wait for the finger to lift.
+        guard selection.count >= config.matchSize,
+              !board.positions.contains(where: canExtend) else { return .selected }
         return .matched(commitMatch())
+    }
+
+    /// Commits the current selection if it has enough tiles.
+    public mutating func commitSelection() -> MatchResolution? {
+        guard phase == .selecting, selection.count >= config.matchSize else { return nil }
+        return commitMatch()
     }
 
     public mutating func cancelSelection() -> [Position] {
@@ -148,7 +174,7 @@ public struct GameEngine {
         guard config.contains(position) else { return .outOfBounds }
         guard !selection.contains(position) else { return .duplicateTile }
         guard board[position].type == board[first].type else { return .typeMismatch }
-        guard selectionLength + last.distance(to: position) <= config.maxLength + Self.lengthTolerance else {
+        guard selectionLength + last.distance(to: position) <= stringLength + Self.lengthTolerance else {
             return .stringTooLong
         }
         return nil
@@ -200,7 +226,8 @@ public struct GameEngine {
         return events
     }
 
-    /// The finger lifted or the system cancelled the touch. Drops an incomplete selection.
+    /// The finger lifted or the system cancelled the touch. Commits a selection of 3 or more
+    /// tiles and drops a shorter one.
     @discardableResult
     public mutating func touchUp() -> [GameEvent] { releaseFinger() }
 
@@ -209,6 +236,10 @@ public struct GameEngine {
         awaitingRelease = false
         lastPoint = nil
         lastHit = nil
+        if let resolution = commitSelection() {
+            awaitingRelease = false
+            return [.matched(resolution)]
+        }
         let cancelled = cancelSelection()
         return cancelled.isEmpty ? [] : [.selectionCancelled(cancelled)]
     }
@@ -249,8 +280,13 @@ public struct GameEngine {
     private mutating func commitMatch() -> MatchResolution {
         let cleared = selection.map { ClearedTile(tile: board[$0], position: $0) }
         selection = []
-        score += config.pointsPerMatch
+        let raisedMultiplier = cleared.count > max(longestMatch, config.matchSize)
+        if raisedMultiplier { multiplier += 1 }
+        longestMatch = max(longestMatch, cleared.count)
+        let points = config.pointsPerMatch * multiplier
+        score += points
         matchCount += 1
+        stringLength = min(config.lengthCap, stringLength + config.lengthGrowth)
         phase = .resolvingMatch
         awaitingRelease = true
 
@@ -279,20 +315,22 @@ public struct GameEngine {
             moves: moves,
             spawns: spawns,
             reshuffle: ensureSolvable(),
-            points: config.pointsPerMatch
+            points: points,
+            multiplier: multiplier,
+            raisedMultiplier: raisedMultiplier
         )
     }
 
-    /// Reshuffles the existing tiles if no valid match exists, keeping the tile set intact.
+    /// Reshuffles the existing tiles if the current string can't make any match, keeping the tile set intact.
     /// Returns the resulting tile movements.
     private mutating func ensureSolvable() -> [TileMove] {
-        guard board.findMatch(maxLength: config.maxLength) == nil else { return [] }
+        guard availableMatch == nil else { return [] }
         let before = board
         for _ in 0..<32 {
             board.shuffle(using: &generator)
-            if board.findMatch(maxLength: config.maxLength) != nil { break }
+            if availableMatch != nil { break }
         }
-        if board.findMatch(maxLength: config.maxLength) == nil { board.gatherTrio() }
+        if availableMatch == nil { board.gatherTrio() }
         var origins: [Int: Position] = [:]
         for position in before.positions { origins[before[position].id] = position }
         return board.positions.compactMap { position in
